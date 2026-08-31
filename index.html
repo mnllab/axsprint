@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <title>AX Sprint Control Tower</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">AX</div>
+        <div><strong>Control Tower</strong><span>사업 실행관리</span></div>
+      </div>
+      <nav id="nav"></nav>
+      <div class="sidebar-footer">
+        <div class="role-pill">주관기관</div>
+        <strong>정션메드 PM</strong>
+        <small>마스터 데이터 중앙관리</small>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">2026 복지분야 AI 응용제품 신속 상용화 지원사업</div>
+          <h1 id="pageTitle">기관 업무현황</h1>
+        </div>
+        <div class="top-actions">
+          <span class="asof" id="asOf"></span>
+          <button class="btn secondary" id="quickAddBtn">+ 실행과제</button>
+          <button class="btn primary" id="pmUpdateBtn">기관 업데이트 반영</button>
+        </div>
+      </header>
+
+      <section id="content" class="content"></section>
+    </main>
+  </div>
+
+  <nav id="mobileNav" class="mobile-nav" aria-label="모바일 메뉴"></nav>
+
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="drawer" id="drawer">
+    <div class="drawer-head">
+      <div><div class="eyebrow" id="drawerEyebrow"></div><h2 id="drawerTitle"></h2></div>
+      <button class="icon-btn" id="drawerClose">×</button>
+    </div>
+    <div id="drawerBody" class="drawer-body"></div>
+  </aside>
+
+  <div class="toast" id="toast"></div>
+  <input type="file" id="importInput" accept="application/json" hidden />
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
