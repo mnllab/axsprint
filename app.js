@@ -15,7 +15,7 @@ const NAV = [
 ];
 let state = loadState();
 const urlParams = new URLSearchParams(location.search);
-let isAdmin = sessionStorage.getItem('ax-sprint-admin-v11') === '1' || sessionStorage.getItem('ax-sprint-admin-v10') === '1' || sessionStorage.getItem('ax-sprint-admin-v9') === '1' || sessionStorage.getItem('ax-sprint-admin-v8') === '1' || sessionStorage.getItem('ax-sprint-admin-v7') === '1';
+let isAdmin = sessionStorage.getItem('ax-sprint-admin-v14') === '1' || sessionStorage.getItem('ax-sprint-admin-v11') === '1' || sessionStorage.getItem('ax-sprint-admin-v10') === '1' || sessionStorage.getItem('ax-sprint-admin-v9') === '1' || sessionStorage.getItem('ax-sprint-admin-v8') === '1' || sessionStorage.getItem('ax-sprint-admin-v7') === '1';
 let portalInstitution = PORTAL_CODE[urlParams.get('inst')] || PORTAL_ORDER[0];
 let portalDetailTab = 'all';
 let portalListFilter = 'all';
@@ -414,7 +414,7 @@ function workboardHTML(){
 
 function adminPortalLinksHTML(){
   const files={'정션메드':'junctionmed.html','경복대학교 산학협력단':'kyungbok.html','돌봄과 미래':'carefuture.html','에임랩':'aimlab.html'};
-  return `<div class="admin-portal-panel"><div><span class="portal-kicker">기관용 화면</span><h2>기관별 접속 화면</h2><p>기관 화면은 현재 주요 진행사항을 먼저 표시하고, 전체 진행항목·예정 일정·요청·회신·협의사항·완료 현황을 선택해서 확인하도록 구성했습니다.</p></div><div class="admin-portal-links">${PORTAL_ORDER.map(name=>`<a class="admin-portal-link" href="${files[name]}" target="_blank"><strong>${esc(name)}</strong><span>기관 화면 열기 ↗</span></a>`).join('')}</div></div>`;
+  return `<div class="admin-portal-panel admin-portal-compact"><div class="admin-portal-title"><strong>기관 화면 바로가기</strong><span>각 기관에 보이는 화면을 확인합니다.</span></div><div class="admin-portal-links">${PORTAL_ORDER.map(name=>`<a class="admin-portal-link" href="${files[name]}" target="_blank"><strong>${esc(name)}</strong><span>열기 ↗</span></a>`).join('')}</div></div>`;
 }
 function dashboardHTML(){
   const am=actionMetrics(), km=kpiMetrics();
@@ -578,10 +578,10 @@ function showAdminLogin(){
 }
 function hideAdminLogin(){const bg=document.getElementById('loginBackdrop');bg.classList.remove('show');bg.setAttribute('aria-hidden','true');}
 function submitAdminLogin(){
-  if(document.getElementById('adminPassword').value===ADMIN_PASSWORD){sessionStorage.setItem('ax-sprint-admin-v11','1');isAdmin=true;currentView='dashboard';hideAdminLogin();render();toast('관리자 화면으로 전환했습니다.');}
+  if(document.getElementById('adminPassword').value===ADMIN_PASSWORD){sessionStorage.setItem('ax-sprint-admin-v14','1');isAdmin=true;currentView='dashboard';hideAdminLogin();render();toast('관리자 화면으로 전환했습니다.');}
   else{document.getElementById('loginError').textContent='비밀번호가 일치하지 않습니다.';document.getElementById('adminPassword').select();}
 }
-function exitAdmin(){sessionStorage.removeItem('ax-sprint-admin-v11');sessionStorage.removeItem('ax-sprint-admin-v10');sessionStorage.removeItem('ax-sprint-admin-v9');sessionStorage.removeItem('ax-sprint-admin-v8');sessionStorage.removeItem('ax-sprint-admin-v7');isAdmin=false;currentView='portal';render();window.scrollTo({top:0,behavior:'smooth'});}
+function exitAdmin(){sessionStorage.removeItem('ax-sprint-admin-v14');sessionStorage.removeItem('ax-sprint-admin-v11');sessionStorage.removeItem('ax-sprint-admin-v10');sessionStorage.removeItem('ax-sprint-admin-v9');sessionStorage.removeItem('ax-sprint-admin-v8');sessionStorage.removeItem('ax-sprint-admin-v7');isAdmin=false;currentView='portal';render();window.scrollTo({top:0,behavior:'smooth'});}
 
 function exportJson(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='AX_Sprint_Control_Tower_backup.json';a.click();URL.revokeObjectURL(a.href);}
 document.getElementById('importInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=()=>{try{state=JSON.parse(reader.result);saveState();render();toast('백업 데이터를 불러왔습니다.');}catch(err){alert('올바른 JSON 백업 파일이 아닙니다.');}};reader.readAsText(f);e.target.value='';});

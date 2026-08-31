@@ -6,7 +6,7 @@ window.INITIAL_DATA = {
     "periodStart": "2026-06-01",
     "periodEnd": "2026-12-31",
     "asOf": "2026-08-31",
-    "version": "MVP v11",
+    "version": "MVP v14",
     "completionCriteriaBasis": "사업수행계획서 성과지표·평가기준·산출물과 제공된 마일스톤 자료 기준"
   },
   "institutions": [
