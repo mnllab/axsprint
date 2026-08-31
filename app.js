@@ -438,16 +438,16 @@ function dashboardHTML(){
     ${metric('PM 확인 필요',am.pm+'건','결정·검토·완료승인')}
   </div>
   <div class="section-title"><div><h2>성과영역 현황</h2><p>성과값이 입력된 지표 기준. 미입력 지표는 별도 표시</p></div><button class="btn ghost" data-go="kpis">전체 성과목표 보기</button></div>
-  <div class="grid-2">
-    <div class="panel">${categoryStats().map(c=>`<div class="category-row"><div><strong>${esc(c.name)}</strong><div class="cell-sub">${c.items}개 지표 · 현재값 ${c.entered}개 입력</div></div><div class="progress-track"><div class="progress-fill ${c.avg===null?'neutral':''}" style="width:${c.avg||0}%"></div></div><div class="progress-number">${c.avg===null?'미측정':c.avg+'%'}</div></div>`).join('')}</div>
-    <div class="panel"><div class="panel-head"><h3>주요 확인사항</h3><span>기준일 ${fmtDate(today())}</span></div>${urgentListHTML(urgentActions())}</div>
+  <div class="grid-2 dashboard-balance-grid">
+    <div class="panel dashboard-category-panel">${categoryStats().map(c=>`<div class="category-row"><div><strong>${esc(c.name)}</strong><div class="cell-sub">${c.items}개 지표 · 현재값 ${c.entered}개 입력</div></div><div class="progress-track"><div class="progress-fill ${c.avg===null?'neutral':''}" style="width:${c.avg||0}%"></div></div><div class="progress-number">${c.avg===null?'미측정':c.avg+'%'}</div></div>`).join('')}</div>
+    <div class="panel dashboard-alert-panel"><div class="panel-head"><h3>주요 확인사항</h3><span>기준일 ${fmtDate(today())}</span></div>${urgentListHTML(urgentActions())}</div>
   </div>
   <div class="section-title"><div><h2>기관별 현황</h2><p>책임항목·협업항목·지연·회신요청을 한 번에 확인</p></div></div>
   <div class="institution-grid">${orderedInstitutions().map(i=>institutionCard(i)).join('')}</div>`;
 }
 function metric(label,value,foot,tone=''){return `<div class="metric-card"><div class="metric-label">${label}</div><div class="metric-value">${value}</div><div class="metric-foot ${tone}">${foot}</div></div>`;}
 function institutionCard(i){const s=institutionStats(i.name);return `<div class="institution-card" data-inst="${esc(i.name)}"><span class="role">${esc(i.role)}</span><h3>${esc(i.name)}</h3><div class="mini-stats"><div class="mini-stat"><strong>${s.responsibility}</strong><span>책임항목</span></div><div class="mini-stat"><strong>${s.late}</strong><span>지연</span></div><div class="mini-stat"><strong>${s.req}</strong><span>회신필요</span></div></div></div>`;}
-function urgentListHTML(items){if(!items.length)return '<div class="empty">현재 14일 이내 마감 또는 지연 항목이 없습니다.</div>';return `<div class="alert-list">${items.map(a=>`<div class="alert-row" data-action="${a.id}"><div>${a.diff<0?'<span class="tag bad">지연 '+Math.abs(a.diff)+'일</span>':a.diff===0?'<span class="tag warn">오늘 마감</span>':'<span class="tag warn">D-'+a.diff+'</span>'}</div><div class="name">${esc(a.name)}<div class="cell-sub">${esc(ownerDisplay(a.owner))}</div></div><div>${statusTag(a.status)}</div><div class="${a.diff<0?'date-bad':'date-warn'}">${fmtDate(a.end)}</div></div>`).join('')}</div>`;}
+function urgentListHTML(items){if(!items.length)return '<div class="empty">현재 14일 이내 마감 또는 지연 항목이 없습니다.</div>';const shown=items.slice(0,6),rest=Math.max(0,items.length-shown.length);return `<div class="alert-list">${shown.map(a=>`<div class="alert-row" data-action="${a.id}"><div class="alert-deadline">${a.diff<0?'<span class="tag bad">지연 '+Math.abs(a.diff)+'일</span>':a.diff===0?'<span class="tag warn">오늘 마감</span>':'<span class="tag warn">D-'+a.diff+'</span>'}</div><div class="name">${esc(a.name)}<div class="cell-sub">${esc(ownerDisplay(a.owner))}</div></div><div class="alert-status">${statusTag(a.status)}</div><div class="alert-date ${a.diff<0?'date-bad':'date-warn'}">${fmtDate(a.end)}</div></div>`).join('')}</div>${rest?`<button class="alert-more" data-go="actions">추가 ${rest}건 전체 실행항목에서 보기 →</button>`:''}`;}
 
 function kpisHTML(){
   const cats=['전체',...new Set(state.kpis.map(x=>x.category))];

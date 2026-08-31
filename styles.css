@@ -1181,3 +1181,273 @@ body{background:var(--bg);color:var(--ink)}
   .admin-mode .data-table th{font-size:12px}
   .admin-mode .data-table td{font-size:14px}
 }
+
+/* v17 — 관리자 대시보드 균형 및 반응형 재정비 */
+.admin-mode{
+  font-size:16px;
+}
+.admin-mode .content{
+  width:100%;
+  max-width:1580px;
+  padding:32px 34px 64px;
+}
+.admin-mode .section-title{
+  margin:34px 0 16px;
+  gap:18px;
+  align-items:flex-end;
+}
+.admin-mode .section-title h2{
+  font-size:25px;
+  line-height:1.25;
+}
+.admin-mode .section-title p{
+  font-size:16px;
+  line-height:1.55;
+}
+.admin-mode .section-title .btn{
+  flex:0 0 auto;
+  font-size:14px;
+  min-height:42px;
+  padding:10px 14px;
+}
+
+/* 성과영역 + 주요 확인사항: 두 영역을 비슷한 시각적 무게로 배치 */
+.admin-mode .dashboard-balance-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.08fr) minmax(560px,.92fr);
+  gap:18px;
+  align-items:start;
+}
+.admin-mode .dashboard-balance-grid > .panel{
+  height:auto;
+  min-height:0;
+}
+.admin-mode .dashboard-category-panel,
+.admin-mode .dashboard-alert-panel{
+  padding:24px 26px;
+}
+.admin-mode .dashboard-category-panel .category-row{
+  display:grid;
+  grid-template-columns:minmax(250px,.95fr) minmax(220px,1.2fr) 92px;
+  gap:20px;
+  align-items:center;
+  padding:18px 0;
+}
+.admin-mode .dashboard-category-panel .category-row strong{
+  display:block;
+  font-size:17px;
+  line-height:1.45;
+  color:#3d4a54;
+  font-weight:760;
+  word-break:keep-all;
+}
+.admin-mode .dashboard-category-panel .category-row .cell-sub{
+  margin-top:6px;
+  font-size:13.5px;
+  line-height:1.45;
+  color:#8a949c;
+}
+.admin-mode .dashboard-category-panel .progress-track{
+  height:8px;
+}
+.admin-mode .dashboard-category-panel .progress-number{
+  font-size:15px;
+  line-height:1.3;
+  font-weight:760;
+  white-space:nowrap;
+}
+
+.admin-mode .dashboard-alert-panel .panel-head{
+  margin-bottom:8px;
+  padding-bottom:13px;
+  border-bottom:1px solid #edf0f1;
+}
+.admin-mode .dashboard-alert-panel .panel-head h3{
+  font-size:20px;
+  line-height:1.35;
+}
+.admin-mode .dashboard-alert-panel .panel-head span{
+  font-size:13px;
+}
+.admin-mode .dashboard-alert-panel .alert-list{
+  display:flex;
+  flex-direction:column;
+}
+.admin-mode .dashboard-alert-panel .alert-row{
+  display:grid;
+  grid-template-columns:96px minmax(220px,1fr) 104px 74px;
+  gap:12px;
+  align-items:center;
+  padding:15px 0;
+  min-width:0;
+}
+.admin-mode .dashboard-alert-panel .alert-row > *{
+  min-width:0;
+}
+.admin-mode .dashboard-alert-panel .alert-row .name{
+  font-size:15.5px;
+  line-height:1.45;
+  font-weight:720;
+  color:#46525b;
+  word-break:keep-all;
+  overflow-wrap:break-word;
+}
+.admin-mode .dashboard-alert-panel .alert-row .name .cell-sub{
+  font-size:12.5px;
+  line-height:1.45;
+  margin-top:4px;
+  color:#8b949c;
+}
+.admin-mode .dashboard-alert-panel .alert-deadline .tag,
+.admin-mode .dashboard-alert-panel .alert-status .tag{
+  font-size:12px;
+  padding:5px 8px;
+}
+.admin-mode .dashboard-alert-panel .alert-date{
+  text-align:right;
+  font-size:13.5px;
+  white-space:nowrap;
+}
+.admin-mode .alert-more{
+  width:100%;
+  border:0;
+  border-top:1px solid #edf0f1;
+  background:transparent;
+  color:#657783;
+  padding:14px 0 2px;
+  font-size:13.5px;
+  font-weight:700;
+  text-align:right;
+  cursor:pointer;
+}
+.admin-mode .alert-more:hover{color:#405765}
+
+/* 상단 숫자 영역도 한 줄의 리듬 유지 */
+.admin-mode .metric-grid{
+  gap:0;
+}
+.admin-mode .metric-card{
+  min-height:126px;
+  padding:23px 24px;
+}
+.admin-mode .metric-label{font-size:14.5px}
+.admin-mode .metric-value{font-size:35px}
+.admin-mode .metric-foot{font-size:13.5px}
+
+/* 기관 카드: 정보 밀도와 글자 크기 균형 */
+.admin-mode .institution-grid{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px;
+}
+.admin-mode .institution-card{
+  min-height:154px;
+  padding:20px 21px;
+}
+.admin-mode .institution-card h3{
+  font-size:18px;
+  min-height:50px;
+  display:flex;
+  align-items:flex-end;
+}
+.admin-mode .mini-stats{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+.admin-mode .mini-stat{
+  padding:9px 8px 5px 0;
+}
+.admin-mode .mini-stat strong{font-size:21px}
+.admin-mode .mini-stat span{font-size:12px}
+
+/* 일반 관리 화면의 글자 크기도 너무 작아지지 않도록 하한 설정 */
+.admin-mode .panel-head h3{font-size:18px}
+.admin-mode .panel-head span{font-size:13px}
+.admin-mode .data-table th{font-size:13px}
+.admin-mode .data-table td{font-size:15px}
+.admin-mode .cell-sub{font-size:13px}
+.admin-mode .tag{font-size:12px}
+
+@media(max-width:1450px){
+  .admin-mode .dashboard-balance-grid{
+    grid-template-columns:1fr;
+  }
+  .admin-mode .dashboard-alert-panel .alert-row{
+    grid-template-columns:104px minmax(260px,1fr) 112px 82px;
+  }
+  .admin-mode .institution-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media(max-width:1100px){
+  .admin-mode .content{
+    max-width:none;
+    padding:26px 24px 56px;
+  }
+  .admin-mode .section-title h2{font-size:23px}
+  .admin-mode .section-title p{font-size:15px}
+  .admin-mode .dashboard-category-panel .category-row{
+    grid-template-columns:minmax(230px,.9fr) minmax(190px,1.1fr) 82px;
+  }
+  .admin-mode .dashboard-alert-panel .alert-row{
+    grid-template-columns:96px minmax(200px,1fr) 100px 78px;
+  }
+}
+
+@media(max-width:820px){
+  .admin-mode .metric-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .admin-mode .metric-card{
+    min-height:112px;
+  }
+  .admin-mode .metric-card:nth-child(n){
+    border-right:1px solid #e8ebed;
+    border-bottom:1px solid #e8ebed;
+  }
+  .admin-mode .metric-card:nth-child(even){border-right:0}
+  .admin-mode .metric-card:last-child{border-bottom:0}
+  .admin-mode .dashboard-category-panel .category-row{
+    grid-template-columns:1fr 78px;
+    grid-template-areas:"label number" "bar bar";
+    gap:8px 14px;
+  }
+  .admin-mode .dashboard-category-panel .category-row > div:first-child{grid-area:label}
+  .admin-mode .dashboard-category-panel .category-row .progress-track{grid-area:bar;margin-top:5px}
+  .admin-mode .dashboard-category-panel .category-row .progress-number{grid-area:number}
+  .admin-mode .dashboard-alert-panel .alert-row{
+    grid-template-columns:88px minmax(0,1fr) 72px;
+    grid-template-areas:"deadline name date" "deadline status date";
+    gap:4px 10px;
+    padding:14px 0;
+  }
+  .admin-mode .dashboard-alert-panel .alert-deadline{grid-area:deadline;align-self:start}
+  .admin-mode .dashboard-alert-panel .name{grid-area:name}
+  .admin-mode .dashboard-alert-panel .alert-status{grid-area:status}
+  .admin-mode .dashboard-alert-panel .alert-date{grid-area:date;align-self:center}
+}
+
+@media(max-width:720px){
+  .admin-mode .content{padding:18px 14px 82px}
+  .admin-mode .section-title{
+    margin:27px 0 13px;
+    align-items:flex-start;
+  }
+  .admin-mode .section-title h2{font-size:21px}
+  .admin-mode .section-title p{font-size:14px}
+  .admin-mode .dashboard-category-panel,
+  .admin-mode .dashboard-alert-panel{padding:18px 17px}
+  .admin-mode .dashboard-category-panel .category-row strong{font-size:15.5px}
+  .admin-mode .dashboard-category-panel .category-row .cell-sub{font-size:12.5px}
+  .admin-mode .dashboard-alert-panel .alert-row{
+    grid-template-columns:82px minmax(0,1fr);
+    grid-template-areas:"deadline name" "status name" "date date";
+    gap:5px 10px;
+  }
+  .admin-mode .dashboard-alert-panel .alert-date{
+    text-align:left;
+    padding-left:92px;
+    margin-top:2px;
+  }
+  .admin-mode .institution-grid{grid-template-columns:1fr}
+  .admin-mode .institution-card h3{min-height:0}
+}
