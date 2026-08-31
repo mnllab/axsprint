@@ -300,3 +300,20 @@ body{font-size:17px;line-height:1.65;background:var(--bg);letter-spacing:-.012em
 }
 .communication-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:20px;margin-top:4px}
 @media(max-width:980px){.communication-grid{grid-template-columns:1fr}}
+
+/* v6: completion criterion simplified */
+.work-criterion,
+.work-criterion.muted{
+  background:transparent !important;
+  border:0 !important;
+  border-left:0 !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+  padding:10px 0 0 !important;
+  color:#263444;
+}
+.work-criterion span{
+  padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+}
