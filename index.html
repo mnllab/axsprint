@@ -29,6 +29,7 @@
           <h1 id="pageTitle">기관 진행현황</h1>
         </div>
         <div class="top-actions">
+          <span class="sync-badge" id="syncStatus">공유DB 확인 중</span>
           <span class="asof" id="asOf"></span>
           <button class="btn secondary" id="quickAddBtn">+ 실행과제</button>
           <button class="btn primary" id="pmUpdateBtn">요청·회신 관리</button>
@@ -67,6 +68,8 @@
   </div>
 
   <input type="file" id="importInput" accept="application/json" hidden />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>

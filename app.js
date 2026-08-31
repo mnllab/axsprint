@@ -1,9 +1,8 @@
-const STORAGE_KEY = 'ax-sprint-control-tower-v11';
-const LEGACY_STORAGE_KEYS = ['ax-sprint-control-tower-v10','ax-sprint-control-tower-v9','ax-sprint-control-tower-v8','ax-sprint-control-tower-v7','ax-sprint-control-tower-v6','ax-sprint-control-tower-v5','ax-sprint-control-tower-v4'];
+const STORAGE_KEY = 'ax-sprint-control-tower-v18';
+const LEGACY_STORAGE_KEYS = ['ax-sprint-control-tower-v11','ax-sprint-control-tower-v10','ax-sprint-control-tower-v9','ax-sprint-control-tower-v8','ax-sprint-control-tower-v7','ax-sprint-control-tower-v6','ax-sprint-control-tower-v5','ax-sprint-control-tower-v4'];
 const STATUS_OPTIONS = ['예정','진행 중','협업기관 회신 대기','PM 검토 대기','PM 결정 필요','지연','완료 요청','완료 승인','보류'];
 const KPI_STATUS_OPTIONS = ['미측정','준비 중','진행 중','주의','위험','달성','미달'];
 const REQUEST_STATUS = ['요청','수신 확인','처리 중','답변 완료','요청자 확인 대기','종결','기한 초과','PM 조정 필요'];
-const ADMIN_PASSWORD = '0000';
 const PARTNER_ORDER = ['경복대학교','돌봄과 미래','에임랩'];
 const PORTAL_ORDER = ['정션메드',...PARTNER_ORDER];
 const DISPLAY_ORDER = [...PARTNER_ORDER,'정션메드'];
@@ -15,7 +14,15 @@ const NAV = [
 ];
 let state = loadState();
 const urlParams = new URLSearchParams(location.search);
-let isAdmin = sessionStorage.getItem('ax-sprint-admin-v15') === '1' || sessionStorage.getItem('ax-sprint-admin-v11') === '1' || sessionStorage.getItem('ax-sprint-admin-v10') === '1' || sessionStorage.getItem('ax-sprint-admin-v9') === '1' || sessionStorage.getItem('ax-sprint-admin-v8') === '1' || sessionStorage.getItem('ax-sprint-admin-v7') === '1';
+let adminPinSession = sessionStorage.getItem('ax-sprint-admin-pin-v18') || '';
+let isAdmin = sessionStorage.getItem('ax-sprint-admin-v18') === '1' && !!adminPinSession;
+let supabaseClient = null;
+let supabaseReady = false;
+let remoteInitialized = false;
+let remoteUpdatedAt = '';
+let remoteSaveTimer = null;
+let remoteSaveBusy = false;
+let remoteSaveQueued = false;
 let portalInstitution = PORTAL_CODE[urlParams.get('inst')] || PORTAL_ORDER[0];
 let portalDetailTab = 'all';
 let portalListFilter = 'all';
@@ -31,6 +38,20 @@ function renameLegacyInstitution(value){
   }
   if(typeof value==='string') return value.replaceAll('경복대학교 산학협력단','경복대학교').replaceAll('경복대학교산학협력단','경복대학교');
   return value;
+}
+function normalizeFlexibleActions(data){
+  (data.actions||[]).forEach((a,index)=>{
+    if(a.baselineStart===undefined) a.baselineStart=a.start||'';
+    if(a.baselineEnd===undefined) a.baselineEnd=a.end||'';
+    if(a.parentId===undefined) a.parentId='';
+    if(a.active===undefined) a.active=true;
+    if(a.changeReason===undefined) a.changeReason='';
+    if(a.sortOrder===undefined) a.sortOrder=(index+1)*10;
+    if(!Array.isArray(a.stages)) a.stages=[];
+  });
+  data.project=data.project||{};
+  data.project.version='MVP v18';
+  return data;
 }
 function loadState(){
   try {
@@ -50,11 +71,11 @@ function loadState(){
         localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
       }
     }
-    data=renameLegacyInstitution(data);
+    data=normalizeFlexibleActions(renameLegacyInstitution(data));
     data.requests=data.requests||[]; data.memos=data.memos||[];
     data.requests.forEach(r=>{r.response=r.response||'';r.responseDate=r.responseDate||'';r.requestedAt=r.requestedAt||'';r.confirmation=r.confirmation||'';});
     return data;
-  } catch(e){ const data=clone(window.INITIAL_DATA); data.memos=data.memos||[]; return data; }
+  } catch(e){ const data=normalizeFlexibleActions(clone(window.INITIAL_DATA)); data.memos=data.memos||[]; return data; }
 }
 function orderedInstitutions(){
   return DISPLAY_ORDER.map(name=>state.institutions.find(i=>i.name===name)).filter(Boolean);
@@ -65,7 +86,70 @@ function normalizeInstitutionOrder(){
   state.institutions=[...ordered,...extra];
 }
 normalizeInstitutionOrder();
-function saveState(){localStorage.setItem(STORAGE_KEY, JSON.stringify(state));}
+function persistLocal(){localStorage.setItem(STORAGE_KEY, JSON.stringify(state));}
+function setSyncStatus(text,tone=''){
+  const el=document.getElementById('syncStatus'); if(!el)return;
+  el.textContent=text; el.className='sync-badge '+tone;
+}
+function saveState(){
+  persistLocal();
+  if(isAdmin && supabaseReady && adminPinSession) scheduleRemoteSave();
+}
+function scheduleRemoteSave(){
+  clearTimeout(remoteSaveTimer);
+  setSyncStatus('저장 대기','syncing');
+  remoteSaveTimer=setTimeout(pushRemoteState,450);
+}
+async function pushRemoteState(){
+  if(!supabaseClient||!adminPinSession)return;
+  if(remoteSaveBusy){remoteSaveQueued=true;return;}
+  remoteSaveBusy=true; setSyncStatus('공유DB 저장 중','syncing');
+  try{
+    const {data,error}=await supabaseClient.rpc('ax_admin_save_state',{p_pin:adminPinSession,p_state:state});
+    if(error) throw error;
+    remoteInitialized=true; remoteUpdatedAt=data||new Date().toISOString();
+    setSyncStatus('공유DB 저장됨','ok');
+  }catch(e){console.error(e);setSyncStatus('저장 실패','error');toast('공유DB 저장에 실패했습니다.');}
+  finally{remoteSaveBusy=false;if(remoteSaveQueued){remoteSaveQueued=false;scheduleRemoteSave();}}
+}
+async function refreshFromRemote(silent=false){
+  if(!supabaseClient)return false;
+  if(!silent)setSyncStatus('공유DB 불러오는 중','syncing');
+  const {data,error}=await supabaseClient.from('ax_project_state').select('state,updated_at').eq('id','main').maybeSingle();
+  if(error){console.error(error);supabaseReady=false;setSyncStatus('DB 설정 필요','error');return false;}
+  supabaseReady=true;
+  if(!data||!data.state){remoteInitialized=false;setSyncStatus('초기 데이터 필요','warn');return false;}
+  const incoming=normalizeFlexibleActions(renameLegacyInstitution(data.state));
+  incoming.requests=incoming.requests||[]; incoming.memos=incoming.memos||[];
+  state=incoming; normalizeInstitutionOrder(); persistLocal(); remoteInitialized=true; remoteUpdatedAt=data.updated_at||'';
+  setSyncStatus('공유DB 연결됨','ok');
+  if(!silent)render(); else if(!isAdmin)render();
+  return true;
+}
+async function initSupabaseSync(){
+  try{
+    const cfg=window.AX_SUPABASE_CONFIG;
+    if(!cfg?.url||!cfg?.publishableKey||!window.supabase){setSyncStatus('로컬 모드','warn');return;}
+    supabaseClient=window.supabase.createClient(cfg.url,cfg.publishableKey,{auth:{persistSession:false,autoRefreshToken:false}});
+    supabaseReady=true;
+    await refreshFromRemote(false);
+  }catch(e){console.error(e);supabaseReady=false;setSyncStatus('연결 실패','error');}
+}
+async function portalReplyRequestRemote(r,institution){
+  if(!supabaseClient)return;
+  const {error}=await supabaseClient.rpc('ax_portal_reply_request',{p_request_id:r.id,p_institution:institution,p_response:r.response,p_response_date:r.responseDate||today()});
+  if(error){console.error(error);setSyncStatus('회신 저장 실패','error');throw error;}
+  await refreshFromRemote(true); setSyncStatus('회신 저장됨','ok');
+}
+async function portalMemoRemote(m,institution,isNew,text){
+  if(!supabaseClient)return;
+  const fn=isNew?'ax_portal_add_memo':'ax_portal_reply_memo';
+  const args=isNew?{p_memo_id:m.id,p_institution:institution,p_title:m.title,p_text:text,p_date:today()}:{p_memo_id:m.id,p_institution:institution,p_text:text,p_date:today()};
+  const {error}=await supabaseClient.rpc(fn,args);
+  if(error){console.error(error);setSyncStatus('메모 저장 실패','error');throw error;}
+  await refreshFromRemote(true); setSyncStatus('메모 저장됨','ok');
+}
+
 function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function fmtDate(s){if(!s)return '-';const d=new Date(s+'T00:00:00');return `${d.getMonth()+1}/${d.getDate()}`;}
 function daysDiff(a,b){return Math.floor((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000);}
@@ -127,7 +211,7 @@ function render(){
 }
 
 function actionMetrics(){
-  const all=state.actions, done=all.filter(x=>x.status==='완료 승인').length;
+  const all=state.actions.filter(a=>a.active!==false), done=all.filter(x=>x.status==='완료 승인').length;
   const overdue=all.filter(x=>x.status!=='완료 승인' && x.end && x.end<today()).length;
   const pm=all.filter(x=>['PM 결정 필요','PM 검토 대기','완료 요청'].includes(x.status)||x.pmCheck).length;
   const waiting=all.filter(x=>x.status==='협업기관 회신 대기').length;
@@ -217,7 +301,7 @@ function memoPreviewList(items,name){
   return `<div class="memo-preview-list">${items.slice(0,8).map(m=>{const msgs=m.messages||[], last=msgs[msgs.length-1]||{};return `<div class="memo-preview" data-memo="${m.id}"><div class="memo-preview-top"><strong>${esc(m.title)}</strong><span>${esc(m.status||'진행')}</span></div><p>${esc(last.text||'메모 내용 없음')}</p><div class="memo-preview-foot"><span>${last.authorInstitution?esc(last.authorInstitution):'-'} · ${last.date?fmtDate(last.date):'-'}</span><span>${msgs.length}건</span></div></div>`}).join('')}</div>`;
 }
 function portalActionData(name){
-  const allRelevant=state.actions.filter(a=>a.owner===name || (a.collaborators||[]).includes(name) || (!a.owner && (a.planInstitutions||[]).includes(name)));
+  const allRelevant=state.actions.filter(a=>a.active!==false).filter(a=>a.owner===name || (a.collaborators||[]).includes(name) || (!a.owner && (a.planInstitutions||[]).includes(name)));
   const relevant=allRelevant.filter(a=>a.status!=='완료 승인');
   const items=relevant.map(a=>({...a,diff:a.end?daysDiff(today(),a.end):999,startDiff:a.start?daysDiff(today(),a.start):999,portalRole:a.owner===name?'책임항목':'관련항목'}));
   const priority=items.filter(a=>(a.end&&a.diff<0) || (a.end&&a.diff>=0&&a.diff<=7) || (a.start&&a.start<=today()&&(!a.end||a.end>=today())))
@@ -236,6 +320,7 @@ function portalStatusMessage(w){
   return '현재 별도 확인이 필요한 긴급사항은 없습니다.';
 }
 function portalStageLabels(a){
+  if(Array.isArray(a.stages)&&a.stages.filter(Boolean).length) return a.stages.filter(Boolean);
   const n=(a.name||'');
   if(/설문/.test(n)) return ['초안 작성','기관 검토','최종 수정','확정'];
   if(/IRB/.test(n)) return ['서류 준비','신청','접수 확인'];
@@ -459,8 +544,8 @@ function institutionsHTML(){
   const selected=viewFilter.institution || PARTNER_ORDER[0];
   const inst=state.institutions.find(i=>i.name===selected)||state.institutions[0];
   const s=institutionStats(inst.name);
-  const responsible=state.actions.filter(a=>a.owner===inst.name);
-  const collab=state.actions.filter(a=>(a.collaborators||[]).includes(inst.name));
+  const responsible=state.actions.filter(a=>a.active!==false&&a.owner===inst.name);
+  const collab=state.actions.filter(a=>a.active!==false&&(a.collaborators||[]).includes(inst.name));
   const relatedKpi=state.kpis.filter(k=>k.owner===inst.name||(k.collaborators||[]).includes(inst.name));
   return `<div class="institution-grid">${orderedInstitutions().map(i=>institutionCard(i)).join('')}</div>
   <div class="section-title"><div><h2>${esc(inst.name)} 상세</h2><p>${esc(inst.role)} · 책임항목 ${s.responsibility}건 · 협업항목 ${s.collab}건</p></div></div>
@@ -469,16 +554,19 @@ function institutionsHTML(){
   <div class="section-title"><div><h2>협업 실행과제</h2></div></div>${actionTableHTML(collab)}`;
 }
 
+function actionSort(items){
+  const map=new Map(items.map(a=>[a.id,a]));
+  const parents=items.filter(a=>!a.parentId||!map.has(a.parentId)).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+  const out=[];
+  const walk=(p,depth=0)=>{out.push({...p,_depth:depth});items.filter(a=>a.parentId===p.id).sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0)).forEach(c=>walk(c,depth+1));};
+  parents.forEach(p=>walk(p));
+  return out;
+}
 function actionsHTML(){
   const insts=['전체 기관','책임기관 미확정',...state.institutions.map(x=>x.name)];
-  return `<div class="toolbar"><input class="input search" id="actionSearch" placeholder="실행과제 검색"><select class="select filter-select" id="actionInst">${insts.map(x=>`<option>${esc(x)}</option>`).join('')}</select><select class="select filter-select" id="actionStatus"><option>전체 상태</option>${STATUS_OPTIONS.map(s=>`<option>${s}</option>`).join('')}</select><button class="btn primary" id="addAction">+ 실행과제 추가</button></div><div id="actionTableHolder">${actionTableHTML(state.actions)}</div>`;
+  return `<div class="toolbar"><input class="input search" id="actionSearch" placeholder="실행항목 검색"><select class="select filter-select" id="actionInst">${insts.map(x=>`<option>${esc(x)}</option>`).join('')}</select><select class="select filter-select" id="actionStatus"><option>전체 상태</option>${STATUS_OPTIONS.map(s=>`<option>${s}</option>`).join('')}</select><select class="select filter-select" id="actionActive"><option>사용 항목</option><option>전체 항목</option><option>비활성</option></select><button class="btn primary" id="addAction">+ 진행항목 추가</button></div><div class="admin-edit-hint"><strong>일정 운영</strong><span>사업계획서 일정은 기준일정으로 보존됩니다. 현재일정은 자유롭게 변경하고, 필요하면 세부항목을 추가하십시오.</span></div><div id="actionTableHolder">${actionTableHTML(state.actions.filter(a=>a.active!==false))}</div>`;
 }
-function actionTableHTML(items){if(!items.length)return '<div class="empty panel">조건에 맞는 실행과제가 없습니다.</div>';return `<div class="table-wrap"><table class="data-table"><thead><tr><th>실행과제</th><th>책임기관</th><th>협업기관</th><th>기간</th><th>상태</th><th>PM</th></tr></thead><tbody>${items.map(a=>`<tr data-action="${a.id}"><td><div class="cell-title">${esc(a.name)}</div><div class="cell-sub">${esc(a.relatedKpi||'성과목표 연결 필요')}</div></td><td>${esc(ownerDisplay(a.owner))}</td><td>${institutionTags(a.collaborators)}</td><td>${fmtDate(a.start)} ~ ${fmtDate(a.end)}${a.end && a.end<today() && a.status!=='완료 승인'?'<div class="cell-sub date-bad">기한 경과</div>':''}</td><td>${statusTag(a.status)}</td><td>${a.pmCheck?'<span class="tag bad">확인 필요</span>':'-'}</td></tr>`).join('')}</tbody></table></div>`;}
-
-function requestsHTML(){
-  return `<div class="toolbar"><button class="btn primary" id="addRequest">+ 요청사항 등록</button><span class="toolbar-note">요청사항 → 기관 회신 → 요청기관 확인 순서로 관리합니다.</span></div>
-  ${state.requests.length?`<div class="table-wrap"><table class="data-table"><thead><tr><th>요청사항</th><th>요청기관</th><th>수신기관</th><th>회신기한</th><th>기관 회신</th><th>상태</th></tr></thead><tbody>${state.requests.map(r=>`<tr data-request="${r.id}"><td><div class="cell-title">${esc(r.title)}</div><div class="cell-sub">${esc(r.content||'')}</div></td><td>${esc(r.from)}</td><td>${esc(r.to)}</td><td>${fmtDate(r.due)}</td><td>${r.response?`<strong class="response-yes">회신 등록</strong><div class="cell-sub">${esc(r.response)}</div>`:'<span class="response-no">회신 대기</span>'}</td><td>${statusTag(r.status)}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty panel">등록된 요청사항이 없습니다.</div>'}`;
-}
+function actionTableHTML(items){if(!items.length)return '<div class="empty panel">조건에 맞는 진행항목이 없습니다.</div>';const rows=actionSort(items);return `<div class="table-wrap"><table class="data-table action-admin-table"><thead><tr><th>진행항목</th><th>책임기관</th><th>기준일정</th><th>현재일정</th><th>상태</th><th>변경</th></tr></thead><tbody>${rows.map(a=>{const changed=(a.baselineStart||'')!==(a.start||'')||(a.baselineEnd||'')!==(a.end||'');return `<tr data-action="${a.id}" class="${a.active===false?'inactive-row':''}"><td><div class="cell-title ${a._depth?'sub-action-title':''}" style="--depth:${a._depth||0}">${a._depth?'↳ ':''}${esc(a.name)} ${a._depth?'<span class="mini-label">세부</span>':''}</div><div class="cell-sub">${esc(a.relatedKpi||'성과목표 연결 필요')}</div></td><td>${esc(ownerDisplay(a.owner))}</td><td><span class="baseline-date">${fmtDate(a.baselineStart)} ~ ${fmtDate(a.baselineEnd)}</span></td><td>${fmtDate(a.start)} ~ ${fmtDate(a.end)}${a.end&&a.end<today()&&a.status!=='완료 승인'?'<div class="cell-sub date-bad">기한 경과</div>':''}</td><td>${statusTag(a.status)}${a.active===false?'<span class="tag">비활성</span>':''}</td><td>${changed?'<span class="tag warn">일정 변경</span>':'<span class="muted">기준 유지</span>'}${a.changeReason?`<div class="cell-sub">${esc(a.changeReason)}</div>`:''}</td></tr>`}).join('')}</tbody></table></div>`;}
 
 function memosHTML(){
   const insts=['전체 기관',...state.institutions.map(x=>x.name)];
@@ -491,7 +579,7 @@ function memoThreadCard(m){const msgs=m.messages||[],last=msgs[msgs.length-1]||{
 
 function timelineHTML(){
   const start='2026-06-01', end='2026-12-31'; const total=daysDiff(start,end)+1;
-  const rows=state.actions.filter(a=>a.start&&a.end).sort((a,b)=>a.start.localeCompare(b.start));
+  const rows=state.actions.filter(a=>a.active!==false&&a.start&&a.end).sort((a,b)=>a.start.localeCompare(b.start));
   return `<div class="toolbar"><span class="tag blue">Master Schedule</span><span class="muted">실행과제의 시작일·종료일을 자동으로 표시</span></div><div class="gantt"><div class="gantt-header"><div>실행과제</div>${['6월','7월','8월','9월','10월','11월','12월'].map(m=>`<div>${m}</div>`).join('')}</div>${rows.map(a=>{const left=Math.max(0,daysDiff(start,a.start))/total*100;const width=Math.max(1,(daysDiff(a.start,a.end)+1)/total*100);const overdue=a.status!=='완료 승인'&&a.end<today();return `<div class="gantt-row" data-action="${a.id}"><div class="gantt-name"><strong>${esc(a.name)}</strong><span>${esc(ownerDisplay(a.owner))} · ${fmtDate(a.start)}~${fmtDate(a.end)}</span></div>${Array(7).fill('<div></div>').join('')}<div class="gantt-track"><span class="gantt-bar ${a.status==='완료 승인'?'done':overdue?'overdue':''}" style="left:${left}%;width:${width}%"></span></div></div>`}).join('')}</div>`;
 }
 
@@ -502,7 +590,7 @@ function settingsHTML(){return `<div class="settings-grid">
   <div class="setting-card"><h3>데이터 백업</h3><p>별도 개발 없이 운영 데이터를 JSON으로 백업·복원할 수 있습니다.</p><div class="toolbar"><button class="btn secondary" id="exportJson">JSON 내보내기</button><button class="btn secondary" id="importJson">JSON 불러오기</button></div></div>
   <div class="setting-card"><h3>초기 데이터</h3><p>업로드된 사업계획·Notion export 자료를 기준으로 만든 초기 상태로 되돌립니다. 입력한 수정내용은 삭제됩니다.</p><button class="btn danger" id="resetData">초기 데이터로 복원</button></div>
   <div class="setting-card"><h3>운영 원칙</h3><div class="code-note">참여기관: 진행상황·실적·증빙·요청 제출\n정션메드 PM: 검토 → 승인 → 공식 데이터 반영\n성과목표/실행과제/기관/간트: 하나의 데이터에서 자동 생성</div></div>
-  <div class="setting-card"><h3>현재 MVP 범위</h3><p>이 버전은 브라우저 LocalStorage를 사용하는 1차 작동 프로토타입입니다. 다음 단계에서 로그인·DB·파일저장·기관별 권한·승인 워크플로를 서버형으로 전환할 수 있습니다.</p></div>
+  <div class="setting-card"><h3>공유DB</h3><p>Supabase 공유DB와 연결됩니다. 변경사항은 저장 즉시 공용 데이터에 반영됩니다.</p><div class="toolbar"><button class="btn secondary" id="refreshRemote">공유DB 새로고침</button><button class="btn primary" id="forceRemoteSave">현재 데이터 동기화</button></div><div class="form-help">사업계획서 기준일정은 보존하고 현재일정·세부항목은 운영 중 변경할 수 있습니다.</div></div>
   <div class="setting-card"><h3>기관</h3><p>${state.institutions.map(i=>`<span class="tag ${i.role==='주관기관'?'blue':''}">${esc(i.name)} · ${esc(i.role)}</span>`).join(' ')}</p></div>
   </div>`;}
 
@@ -515,7 +603,7 @@ function bindViewEvents(){
   document.querySelectorAll('[data-inst]').forEach(x=>x.onclick=()=>{viewFilter.institution=x.dataset.inst;currentView='institutions';render();});
   document.querySelectorAll('[data-work-inst]').forEach(b=>b.onclick=()=>{viewFilter.workInstitution=b.dataset.workInst;render();window.scrollTo({top:0,behavior:'smooth'});});
   if(document.getElementById('kpiSearch')){['input','change'].forEach(evt=>{document.getElementById('kpiSearch').addEventListener(evt,filterKpis);document.getElementById('kpiCategory').addEventListener(evt,filterKpis);document.getElementById('kpiStatus').addEventListener(evt,filterKpis);});}
-  if(document.getElementById('actionSearch')){['input','change'].forEach(evt=>{document.getElementById('actionSearch').addEventListener(evt,filterActions);document.getElementById('actionInst').addEventListener(evt,filterActions);document.getElementById('actionStatus').addEventListener(evt,filterActions);});document.getElementById('addAction').onclick=()=>openAction();}
+  if(document.getElementById('actionSearch')){['input','change'].forEach(evt=>{document.getElementById('actionSearch').addEventListener(evt,filterActions);document.getElementById('actionInst').addEventListener(evt,filterActions);document.getElementById('actionStatus').addEventListener(evt,filterActions);document.getElementById('actionActive').addEventListener(evt,filterActions);});document.getElementById('addAction').onclick=()=>openAction();}
   if(document.getElementById('addRequest')) document.getElementById('addRequest').onclick=()=>openRequest();
   if(document.getElementById('newRequestForInst')) document.getElementById('newRequestForInst').onclick=()=>openRequest(null, viewFilter.workInstitution || PARTNER_ORDER[0]);
   if(document.getElementById('newMemoForInst')) document.getElementById('newMemoForInst').onclick=()=>openMemo(null, viewFilter.workInstitution || PARTNER_ORDER[0]);
@@ -524,7 +612,9 @@ function bindViewEvents(){
   if(document.getElementById('saveProjectSetting')) document.getElementById('saveProjectSetting').onclick=()=>{state.project.asOf=document.getElementById('asOfSetting').value;saveState();toast('기준일을 저장했습니다.');render();};
   if(document.getElementById('exportJson')) document.getElementById('exportJson').onclick=exportJson;
   if(document.getElementById('importJson')) document.getElementById('importJson').onclick=()=>document.getElementById('importInput').click();
-  if(document.getElementById('resetData')) document.getElementById('resetData').onclick=()=>{if(confirm('현재 수정 데이터를 모두 지우고 초기 상태로 복원할까요?')){state=clone(window.INITIAL_DATA);normalizeInstitutionOrder();saveState();render();toast('초기 데이터로 복원했습니다.');}};
+  if(document.getElementById('refreshRemote')) document.getElementById('refreshRemote').onclick=()=>refreshFromRemote(false);
+  if(document.getElementById('forceRemoteSave')) document.getElementById('forceRemoteSave').onclick=()=>pushRemoteState();
+  if(document.getElementById('resetData')) document.getElementById('resetData').onclick=()=>{if(confirm('현재 수정 데이터를 모두 지우고 초기 상태로 복원할까요?')){state=normalizeFlexibleActions(clone(window.INITIAL_DATA));normalizeInstitutionOrder();saveState();render();toast('초기 데이터로 복원했습니다.');}};
 }
 function bindInstitutionPortalEvents(){
   document.querySelectorAll('[data-portal-inst]').forEach(b=>b.onclick=()=>{
@@ -542,7 +632,7 @@ function bindInstitutionPortalEvents(){
   const add=document.getElementById('publicAddMemo');if(add)add.onclick=()=>openInstitutionMemo(null,portalInstitution);
 }
 function filterKpis(){const q=document.getElementById('kpiSearch').value.trim().toLowerCase(),cat=document.getElementById('kpiCategory').value,st=document.getElementById('kpiStatus').value;const list=state.kpis.filter(k=>(!q||(k.name+' '+k.target).toLowerCase().includes(q))&&(cat==='전체'||k.category===cat)&&(st==='전체 상태'||k.status===st));document.getElementById('kpiGrid').innerHTML=renderKpiCards(list);document.querySelectorAll('[data-kpi]').forEach(x=>x.onclick=()=>openKpi(x.dataset.kpi));}
-function filterActions(){const q=document.getElementById('actionSearch').value.trim().toLowerCase(),inst=document.getElementById('actionInst').value,st=document.getElementById('actionStatus').value;const list=state.actions.filter(a=>(!q||a.name.toLowerCase().includes(q))&&(inst==='전체 기관'||(inst==='책임기관 미확정'&&!a.owner)||a.owner===inst||(a.collaborators||[]).includes(inst))&&(st==='전체 상태'||a.status===st));document.getElementById('actionTableHolder').innerHTML=actionTableHTML(list);document.querySelectorAll('[data-action]').forEach(x=>x.onclick=()=>openAction(x.dataset.action));}
+function filterActions(){const q=document.getElementById('actionSearch').value.trim().toLowerCase(),inst=document.getElementById('actionInst').value,st=document.getElementById('actionStatus').value,active=document.getElementById('actionActive')?.value||'사용 항목';const list=state.actions.filter(a=>(!q||a.name.toLowerCase().includes(q))&&(inst==='전체 기관'||(inst==='책임기관 미확정'&&!a.owner)||a.owner===inst||(a.collaborators||[]).includes(inst))&&(st==='전체 상태'||a.status===st)&&(active==='전체 항목'||(active==='비활성'?a.active===false:a.active!==false)));document.getElementById('actionTableHolder').innerHTML=actionTableHTML(list);document.querySelectorAll('[data-action]').forEach(x=>x.onclick=()=>openAction(x.dataset.action));}
 
 function openDrawer(eyebrow,title,body){document.getElementById('drawerEyebrow').textContent=eyebrow;document.getElementById('drawerTitle').textContent=title;document.getElementById('drawerBody').innerHTML=body;document.getElementById('drawer').classList.add('open');document.getElementById('drawerBackdrop').classList.add('open');}
 function closeDrawer(){document.getElementById('drawer').classList.remove('open');document.getElementById('drawerBackdrop').classList.remove('open');}
@@ -552,7 +642,26 @@ function checkedValues(name){return [...document.querySelectorAll(`input[name="$
 
 function openKpi(id){const k=state.kpis.find(x=>x.id===id);if(!k)return;openDrawer(k.id,k.name,`<div class="detail-block"><h4>협약 목표</h4><p>${esc(k.target)}</p></div><div class="form-grid"><div class="form-field"><label>현재값</label><input class="input" id="kCurrent" value="${esc(k.currentValue)}" placeholder="예: 430명 / 1,280건"></div><div class="form-field"><label>달성률 (%)</label><input type="number" min="0" max="100" class="input" id="kProgress" value="${k.progress??''}" placeholder="0~100"></div></div><div class="form-grid"><div class="form-field"><label>성과 상태</label><select class="select" id="kStatus">${KPI_STATUS_OPTIONS.map(s=>`<option ${s===k.status?'selected':''}>${s}</option>`).join('')}</select></div><div class="form-field"><label>증빙 상태</label><select class="select" id="kEvidence"><option ${k.evidenceStatus==='미등록'?'selected':''}>미등록</option><option ${k.evidenceStatus==='준비 중'?'selected':''}>준비 중</option><option ${k.evidenceStatus==='확보'?'selected':''}>확보</option><option ${k.evidenceStatus==='PM 승인'?'selected':''}>PM 승인</option></select></div></div><div class="form-field"><label>책임기관</label><select class="select" id="kOwner">${instOptions(k.owner)}</select><div class="form-help">원자료에 여러 기관이 함께 표기된 경우 초기값을 미확정으로 두었습니다.</div></div><div class="form-field"><label>협업기관</label><div>${multiInstChecks(k.collaborators)}</div></div><div class="form-field"><label>남아있는 과정 / 다음 단계</label><textarea class="textarea" id="kNext" placeholder="예: 기관확보 → 온보딩 → 사전조사 → 실증 → 사후조사 → 분석">${esc(k.nextStep)}</textarea></div><div class="form-field"><label>PM 메모</label><textarea class="textarea" id="kPm">${esc(k.pmNote)}</textarea></div><div class="detail-block"><h4>주요내용 및 산출물</h4><p>${esc(k.deliverable)}</p></div><div class="detail-block"><h4>평가기준</h4><p>${esc(k.evaluation)}</p></div><div class="drawer-actions"><button class="btn secondary" id="closeKpi">취소</button><button class="btn primary" id="saveKpi">저장</button></div>`);document.getElementById('closeKpi').onclick=closeDrawer;document.getElementById('saveKpi').onclick=()=>{k.currentValue=document.getElementById('kCurrent').value;k.progress=document.getElementById('kProgress').value===''?null:Number(document.getElementById('kProgress').value);k.status=document.getElementById('kStatus').value;k.evidenceStatus=document.getElementById('kEvidence').value;k.owner=document.getElementById('kOwner').value;k.collaborators=checkedValues('collab').filter(x=>x!==k.owner);k.nextStep=document.getElementById('kNext').value;k.pmNote=document.getElementById('kPm').value;saveState();closeDrawer();render();toast('성과목표를 업데이트했습니다.');};}
 
-function openAction(id){let a=id?state.actions.find(x=>x.id===id):null;const isNew=!a;if(!a)a={id:'ACT-'+String(Math.max(0,...state.actions.map(x=>Number(x.id.split('-')[1])||0))+1).padStart(3,'0'),name:'',owner:'',collaborators:[],start:today(),end:today(),status:'예정',priority:'보통',completionCriteria:'',evidence:'',blocker:'',pmCheck:false,relatedKpi:'',note:'',planInstitutions:[]};openDrawer(isNew?'NEW ACTION':a.id,isNew?'새 실행과제':a.name,`<div class="form-field"><label>실행과제명</label><input class="input" id="aName" value="${esc(a.name)}"></div><div class="form-grid"><div class="form-field"><label>책임기관</label><select class="select" id="aOwner">${instOptions(a.owner)}</select></div><div class="form-field"><label>상태</label><select class="select" id="aStatus">${STATUS_OPTIONS.map(s=>`<option ${s===a.status?'selected':''}>${s}</option>`).join('')}</select></div></div><div class="form-field"><label>협업기관</label><div>${multiInstChecks(a.collaborators)}</div></div><div class="form-grid"><div class="form-field"><label>시작일</label><input type="date" class="input" id="aStart" value="${a.start||''}"></div><div class="form-field"><label>종료일</label><input type="date" class="input" id="aEnd" value="${a.end||''}"></div></div><div class="form-field"><label>관련 성과목표</label><select class="select" id="aKpi"><option value="">미연결</option>${state.kpis.map(k=>`<option value="${esc(k.name)}" ${k.name===a.relatedKpi?'selected':''}>${esc(k.name)}</option>`).join('')}</select></div><div class="form-field"><label>완료기준</label><textarea class="textarea" id="aCriteria">${esc(a.completionCriteria)}</textarea></div><div class="form-field"><label>필요 증빙</label><input class="input" id="aEvidence" value="${esc(a.evidence)}"></div><div class="form-field"><label>현재 이슈 / 막힘</label><textarea class="textarea" id="aBlocker">${esc(a.blocker)}</textarea></div><div class="form-field"><label><input type="checkbox" id="aPm" ${a.pmCheck?'checked':''}> PM 확인 필요</label></div><div class="drawer-actions">${!isNew?'<button class="btn danger" id="deleteAction">삭제</button>':''}<button class="btn secondary" id="closeAction">취소</button><button class="btn primary" id="saveAction">저장</button></div>`);document.getElementById('closeAction').onclick=closeDrawer;if(document.getElementById('deleteAction'))document.getElementById('deleteAction').onclick=()=>{if(confirm('이 실행과제를 삭제할까요?')){state.actions=state.actions.filter(x=>x.id!==a.id);saveState();closeDrawer();render();toast('삭제했습니다.');}};document.getElementById('saveAction').onclick=()=>{a.name=document.getElementById('aName').value.trim();if(!a.name){alert('실행과제명을 입력하세요.');return;}a.owner=document.getElementById('aOwner').value;a.status=document.getElementById('aStatus').value;a.collaborators=checkedValues('collab').filter(x=>x!==a.owner);a.start=document.getElementById('aStart').value;a.end=document.getElementById('aEnd').value;a.relatedKpi=document.getElementById('aKpi').value;a.completionCriteria=document.getElementById('aCriteria').value;a.evidence=document.getElementById('aEvidence').value;a.blocker=document.getElementById('aBlocker').value;a.pmCheck=document.getElementById('aPm').checked;if(isNew)state.actions.push(a);saveState();closeDrawer();render();toast(isNew?'실행과제를 추가했습니다.':'실행과제를 업데이트했습니다.');};}
+function nextActionId(){return 'ACT-'+String(Math.max(0,...state.actions.map(x=>Number(String(x.id).split('-')[1])||0))+1).padStart(3,'0');}
+function openAction(id,preset={}){
+  let a=id?state.actions.find(x=>x.id===id):null;const isNew=!a;
+  if(!a){
+    const parent=preset.parentId?state.actions.find(x=>x.id===preset.parentId):null;
+    a={id:nextActionId(),name:'',owner:parent?.owner||'',collaborators:parent?[...(parent.collaborators||[])]:[],start:parent?.start||today(),end:parent?.end||today(),baselineStart:parent?.start||today(),baselineEnd:parent?.end||today(),status:'예정',priority:'보통',completionCriteria:'',evidence:'',blocker:'',pmCheck:false,relatedKpi:parent?.relatedKpi||'',note:'',planInstitutions:[],parentId:preset.parentId||'',active:true,changeReason:'',sortOrder:Math.max(0,...state.actions.map(x=>Number(x.sortOrder)||0))+10,stages:[]};
+  }
+  normalizeFlexibleActions({actions:[a],project:{}});
+  const parentOptions=`<option value="">상위항목 없음</option>${state.actions.filter(x=>x.id!==a.id&&x.active!==false).map(x=>`<option value="${esc(x.id)}" ${x.id===a.parentId?'selected':''}>${esc(x.id+' · '+x.name)}</option>`).join('')}`;
+  const stageText=(a.stages||[]).join(', ');
+  openDrawer(isNew?'NEW ITEM':a.id,isNew?'진행항목 추가':a.name,`<div class="flex-edit-banner"><strong>기준일정과 현재일정</strong><span>기준일정은 사업계획서 기준으로 보존됩니다. 현재일정은 실제 수행 상황에 맞춰 변경하십시오.</span></div><div class="form-field"><label>항목명</label><input class="input" id="aName" value="${esc(a.name)}"></div><div class="form-grid"><div class="form-field"><label>상위항목</label><select class="select" id="aParent">${parentOptions}</select></div><div class="form-field"><label>상태</label><select class="select" id="aStatus">${STATUS_OPTIONS.map(s=>`<option ${s===a.status?'selected':''}>${s}</option>`).join('')}</select></div></div><div class="form-grid"><div class="form-field"><label>책임기관</label><select class="select" id="aOwner">${instOptions(a.owner)}</select></div><div class="form-field"><label>사용 여부</label><label class="toggle-line"><input type="checkbox" id="aActive" ${a.active!==false?'checked':''}> 기관 화면과 일정에 표시</label></div></div><div class="form-field"><label>협업기관</label><div>${multiInstChecks(a.collaborators)}</div></div><div class="drawer-section-divider"><span>일정</span></div><div class="form-grid baseline-grid"><div class="form-field"><label>기준 시작일</label><input type="date" class="input baseline-input" id="aBaselineStart" value="${a.baselineStart||''}" readonly></div><div class="form-field"><label>기준 종료일</label><input type="date" class="input baseline-input" id="aBaselineEnd" value="${a.baselineEnd||''}" readonly></div></div><div class="form-grid"><div class="form-field"><label>현재 시작일</label><input type="date" class="input" id="aStart" value="${a.start||''}"></div><div class="form-field"><label>현재 종료일</label><input type="date" class="input" id="aEnd" value="${a.end||''}"></div></div><div class="form-field"><label>일정 변경 사유</label><input class="input" id="aChangeReason" value="${esc(a.changeReason||'')}" placeholder="예: IRB 일정 조정, 기관 협의 지연"></div><div class="form-field"><label>관련 성과목표</label><select class="select" id="aKpi"><option value="">미연결</option>${state.kpis.map(k=>`<option value="${esc(k.name)}" ${k.name===a.relatedKpi?'selected':''}>${esc(k.name)}</option>`).join('')}</select></div><div class="form-field"><label>진행단계 표시</label><input class="input" id="aStages" value="${esc(stageText)}" placeholder="예: 준비, 기관 검토, 수정, 확정"><div class="form-help">기관 화면의 단계 표시를 직접 정할 수 있습니다. 비우면 항목명에 따라 자동 표시됩니다.</div></div><div class="form-field"><label>완료기준</label><textarea class="textarea" id="aCriteria">${esc(a.completionCriteria)}</textarea></div><div class="form-field"><label>필요 증빙</label><input class="input" id="aEvidence" value="${esc(a.evidence)}"></div><div class="form-field"><label>현재 이슈 / 확인사항</label><textarea class="textarea" id="aBlocker">${esc(a.blocker)}</textarea></div><div class="form-field"><label><input type="checkbox" id="aPm" ${a.pmCheck?'checked':''}> PM 확인 필요</label></div><div class="drawer-actions flex-action-buttons">${!isNew?'<button class="btn secondary" id="addSubAction">+ 세부항목</button><button class="btn secondary" id="duplicateAction">복제</button><button class="btn danger" id="deactivateAction">비활성</button>':''}<button class="btn secondary" id="closeAction">취소</button><button class="btn primary" id="saveAction">저장</button></div>`);
+  document.getElementById('closeAction').onclick=closeDrawer;
+  if(document.getElementById('addSubAction'))document.getElementById('addSubAction').onclick=()=>{closeDrawer();openAction(null,{parentId:a.id});};
+  if(document.getElementById('duplicateAction'))document.getElementById('duplicateAction').onclick=()=>{const copy=clone(a);copy.id=nextActionId();copy.name=a.name+' 복사';copy.baselineStart=a.start;copy.baselineEnd=a.end;copy.parentId=a.parentId||'';copy.sortOrder=Math.max(0,...state.actions.map(x=>Number(x.sortOrder)||0))+10;state.actions.push(copy);saveState();closeDrawer();render();toast('항목을 복제했습니다.');};
+  if(document.getElementById('deactivateAction'))document.getElementById('deactivateAction').onclick=()=>{a.active=false;saveState();closeDrawer();render();toast('비활성 처리했습니다.');};
+  document.getElementById('saveAction').onclick=()=>{
+    a.name=document.getElementById('aName').value.trim();if(!a.name){alert('항목명을 입력하세요.');return;}
+    a.parentId=document.getElementById('aParent').value;a.owner=document.getElementById('aOwner').value;a.status=document.getElementById('aStatus').value;a.active=document.getElementById('aActive').checked;a.collaborators=checkedValues('collab').filter(x=>x!==a.owner);a.start=document.getElementById('aStart').value;a.end=document.getElementById('aEnd').value;a.changeReason=document.getElementById('aChangeReason').value.trim();a.relatedKpi=document.getElementById('aKpi').value;a.stages=document.getElementById('aStages').value.split(',').map(x=>x.trim()).filter(Boolean);a.completionCriteria=document.getElementById('aCriteria').value;a.evidence=document.getElementById('aEvidence').value;a.blocker=document.getElementById('aBlocker').value;a.pmCheck=document.getElementById('aPm').checked;if(isNew)state.actions.push(a);saveState();closeDrawer();render();toast(isNew?'진행항목을 추가했습니다.':'진행항목을 업데이트했습니다.');
+  };
+}
 
 function openRequest(id,defaultTo=''){let r=id?state.requests.find(x=>x.id===id):null;const isNew=!r;if(!r)r={id:'REQ-'+String(state.requests.length+1).padStart(3,'0'),title:'',from:'정션메드',to:defaultTo||'',content:'',requestedAt:today(),due:today(),status:'요청',response:'',responseDate:'',confirmation:'',relatedAction:''};
   const responseBlock=isNew?'':`<div class="drawer-section-divider"><span>기관 회신</span></div><div class="form-field"><label>회신내용</label><textarea class="textarea response-textarea" id="rResponse" placeholder="요청사항에 대한 처리결과, 일정, 확인내용을 입력">${esc(r.response||'')}</textarea></div><div class="form-grid"><div class="form-field"><label>회신일</label><input type="date" class="input" id="rResponseDate" value="${r.responseDate||''}"></div><div class="form-field"><label>처리상태</label><select class="select" id="rStatus">${REQUEST_STATUS.map(s=>`<option ${s===r.status?'selected':''}>${s}</option>`).join('')}</select></div></div><div class="form-field"><label>요청기관 확인 메모</label><textarea class="textarea" id="rConfirmation" placeholder="회신 확인 후 추가 요청 또는 종결 여부 기록">${esc(r.confirmation||'')}</textarea></div>`;
@@ -572,7 +681,7 @@ function openInstitutionRequest(id,institution){
   const r=state.requests.find(x=>x.id===id);if(!r||r.to!==institution)return;
   openDrawer('REQUEST',r.title,`<div class="public-drawer-readonly"><span>요청사항</span><p>${esc(r.content||'')}</p><div><strong>회신기한</strong> ${r.due?fmtDate(r.due):'미정'}</div></div><div class="drawer-section-divider"><span>기관 회신</span></div><div class="form-field"><label>회신내용</label><textarea class="textarea response-textarea" id="publicResponse" placeholder="처리현황, 완료예정일, 확인내용을 입력">${esc(r.response||'')}</textarea></div><div class="form-field"><label>회신일</label><input type="date" class="input" id="publicResponseDate" value="${r.responseDate||today()}"></div>${r.confirmation?`<div class="public-confirm-readonly"><span>정션메드 확인</span><p>${esc(r.confirmation)}</p></div>`:''}<div class="drawer-actions"><button class="btn secondary" id="publicReqCancel">취소</button><button class="btn primary" id="publicReqSave">회신 저장</button></div>`);
   document.getElementById('publicReqCancel').onclick=closeDrawer;
-  document.getElementById('publicReqSave').onclick=()=>{const text=document.getElementById('publicResponse').value.trim();if(!text){alert('회신내용을 입력해 주십시오.');return;}r.response=text;r.responseDate=document.getElementById('publicResponseDate').value||today();if(['요청','수신 확인','처리 중','기한 초과'].includes(r.status))r.status='답변 완료';saveState();closeDrawer();render();toast('회신을 저장했습니다.');};
+  document.getElementById('publicReqSave').onclick=async()=>{const text=document.getElementById('publicResponse').value.trim();if(!text){alert('회신내용을 입력해 주십시오.');return;}r.response=text;r.responseDate=document.getElementById('publicResponseDate').value||today();if(['요청','수신 확인','처리 중','기한 초과'].includes(r.status))r.status='답변 완료';persistLocal();try{await portalReplyRequestRemote(r,institution);closeDrawer();render();toast('회신을 저장했습니다.');}catch(e){alert('공유DB 회신 저장에 실패했습니다. 잠시 후 다시 시도해 주십시오.');}};
 }
 function openInstitutionMemo(id,institution){
   let m=id?(state.memos||[]).find(x=>x.id===id):null;const isNew=!m;
@@ -581,20 +690,27 @@ function openInstitutionMemo(id,institution){
   const messages=(m.messages||[]).map(msg=>`<div class="message-item ${msg.authorInstitution==='정션메드'?'pm-message':''}"><div class="message-meta"><strong>${esc(msg.authorInstitution||'-')}</strong><span>${msg.date?fmtDate(msg.date):'-'}</span></div><p>${esc(msg.text||'')}</p></div>`).join('')||'<div class="portal-empty">아직 등록된 내용이 없습니다.</div>';
   openDrawer(isNew?'NEW MEMO':m.id,isNew?'협의사항 작성':m.title,`${isNew?`<div class="form-field"><label>제목</label><input class="input" id="publicMemoTitle" placeholder="협의 또는 확인할 사항"></div>`:`<div class="message-thread">${messages}</div>`}<div class="drawer-section-divider"><span>${isNew?'메모 내용':'답변·추가 메모'}</span></div><div class="form-field"><label>내용</label><textarea class="textarea response-textarea" id="publicMemoText" placeholder="확인사항 또는 답변을 입력"></textarea></div><div class="drawer-actions"><button class="btn secondary" id="publicMemoCancel">취소</button><button class="btn primary" id="publicMemoSave">저장</button></div>`);
   document.getElementById('publicMemoCancel').onclick=closeDrawer;
-  document.getElementById('publicMemoSave').onclick=()=>{const text=document.getElementById('publicMemoText').value.trim();const title=isNew?document.getElementById('publicMemoTitle').value.trim():m.title;if(!title){alert('제목을 입력해 주십시오.');return;}if(!text){alert('내용을 입력해 주십시오.');return;}m.title=title;m.institution=institution;m.messages=m.messages||[];m.messages.push({authorInstitution:institution,date:today(),text});if(isNew){state.memos=state.memos||[];state.memos.push(m);}saveState();closeDrawer();render();toast('협의사항을 저장했습니다.');};
+  document.getElementById('publicMemoSave').onclick=async()=>{const text=document.getElementById('publicMemoText').value.trim();const title=isNew?document.getElementById('publicMemoTitle').value.trim():m.title;if(!title){alert('제목을 입력해 주십시오.');return;}if(!text){alert('내용을 입력해 주십시오.');return;}m.title=title;m.institution=institution;m.messages=m.messages||[];m.messages.push({authorInstitution:institution,date:today(),text});if(isNew){state.memos=state.memos||[];state.memos.push(m);}persistLocal();try{await portalMemoRemote(m,institution,isNew,text);closeDrawer();render();toast('협의사항을 저장했습니다.');}catch(e){alert('공유DB 메모 저장에 실패했습니다. 잠시 후 다시 시도해 주십시오.');}};
 }
 function showAdminLogin(){
   const bg=document.getElementById('loginBackdrop');bg.classList.add('show');bg.setAttribute('aria-hidden','false');const input=document.getElementById('adminPassword');input.value='';document.getElementById('loginError').textContent='';setTimeout(()=>input.focus(),50);
 }
 function hideAdminLogin(){const bg=document.getElementById('loginBackdrop');bg.classList.remove('show');bg.setAttribute('aria-hidden','true');}
-function submitAdminLogin(){
-  if(document.getElementById('adminPassword').value===ADMIN_PASSWORD){sessionStorage.setItem('ax-sprint-admin-v15','1');isAdmin=true;currentView='dashboard';hideAdminLogin();render();toast('관리자 화면으로 전환했습니다.');}
-  else{document.getElementById('loginError').textContent='비밀번호가 일치하지 않습니다.';document.getElementById('adminPassword').select();}
+async function submitAdminLogin(){
+  const pin=document.getElementById('adminPassword').value.trim();
+  if(!supabaseClient||!supabaseReady){document.getElementById('loginError').textContent='공유DB 설정을 먼저 완료해 주십시오.';return;}
+  document.getElementById('loginError').textContent='확인 중...';
+  const {data,error}=await supabaseClient.rpc('ax_verify_admin_pin',{p_pin:pin});
+  if(!error&&data===true){
+    sessionStorage.setItem('ax-sprint-admin-v18','1');sessionStorage.setItem('ax-sprint-admin-pin-v18',pin);adminPinSession=pin;isAdmin=true;currentView='dashboard';hideAdminLogin();
+    if(!remoteInitialized)await pushRemoteState();else await refreshFromRemote(true);
+    render();toast('관리자 화면으로 전환했습니다.');
+  }else{document.getElementById('loginError').textContent=error?'DB 설정 또는 연결을 확인해 주십시오.':'비밀번호가 일치하지 않습니다.';document.getElementById('adminPassword').select();}
 }
-function exitAdmin(){sessionStorage.removeItem('ax-sprint-admin-v15');sessionStorage.removeItem('ax-sprint-admin-v11');sessionStorage.removeItem('ax-sprint-admin-v10');sessionStorage.removeItem('ax-sprint-admin-v9');sessionStorage.removeItem('ax-sprint-admin-v8');sessionStorage.removeItem('ax-sprint-admin-v7');isAdmin=false;currentView='portal';render();window.scrollTo({top:0,behavior:'smooth'});}
+function exitAdmin(){sessionStorage.removeItem('ax-sprint-admin-v18');sessionStorage.removeItem('ax-sprint-admin-pin-v18');adminPinSession='';isAdmin=false;currentView='portal';render();window.scrollTo({top:0,behavior:'smooth'});}
 
 function exportJson(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='AX_Sprint_Control_Tower_backup.json';a.click();URL.revokeObjectURL(a.href);}
-document.getElementById('importInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=()=>{try{state=JSON.parse(reader.result);saveState();render();toast('백업 데이터를 불러왔습니다.');}catch(err){alert('올바른 JSON 백업 파일이 아닙니다.');}};reader.readAsText(f);e.target.value='';});
+document.getElementById('importInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=()=>{try{state=normalizeFlexibleActions(renameLegacyInstitution(JSON.parse(reader.result)));saveState();render();toast('백업 데이터를 불러왔습니다.');}catch(err){alert('올바른 JSON 백업 파일이 아닙니다.');}};reader.readAsText(f);e.target.value='';});
 document.getElementById('drawerClose').onclick=closeDrawer;
 document.getElementById('drawerBackdrop').onclick=closeDrawer;
 document.getElementById('quickAddBtn').onclick=()=>{if(isAdmin)openAction();};
@@ -606,3 +722,7 @@ document.getElementById('loginSubmit').onclick=submitAdminLogin;
 document.getElementById('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')submitAdminLogin();});
 if(urlParams.get('admin')==='1'&&!isAdmin)setTimeout(showAdminLogin,100);
 render();
+initSupabaseSync();
+document.getElementById('syncStatus').onclick=()=>refreshFromRemote(false);
+setInterval(()=>{if(supabaseReady&&!isAdmin)refreshFromRemote(true);},30000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&supabaseReady&&!isAdmin)refreshFromRemote(true);});
