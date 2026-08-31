@@ -856,7 +856,7 @@ body{background:var(--bg);color:var(--ink)}
   .compact-date{grid-area:date;font-size:11px}
 }
 
-/* v14 — calmer, lower-contrast administrator workspace */
+/* v15 — calmer, lower-contrast administrator workspace */
 .admin-mode{
   --bg:#f4f5f5;
   --panel:#ffffff;
@@ -1075,4 +1075,109 @@ body{background:var(--bg);color:var(--ink)}
   .admin-mode .metric-card:last-child{border-bottom:0}
   .admin-mode .metric-value{font-size:23px}
   .admin-mode .institution-grid{grid-template-columns:1fr 1fr}
+}
+
+/* v16: 관리자 모드 가독성 확대 */
+.admin-mode .sidebar{width:auto}
+.admin-mode .brand{gap:13px;padding-bottom:25px}
+.admin-mode .brand-mark{width:42px;height:42px;font-size:17px}
+.admin-mode .brand strong{font-size:17px;line-height:1.35}
+.admin-mode .brand span{font-size:13px;line-height:1.45;margin-top:4px}
+.admin-mode .nav-item{font-size:15px;line-height:1.4;padding:13px 14px}
+.admin-mode .sidebar-footer{padding:16px 11px;gap:6px}
+.admin-mode .sidebar-footer strong{font-size:15px}
+.admin-mode .sidebar-footer small{font-size:13px;line-height:1.45}
+.admin-mode .role-pill{font-size:12px;padding:5px 9px}
+
+.admin-mode .topbar{height:94px;padding-left:34px;padding-right:34px}
+.admin-mode .topbar h1{font-size:28px;letter-spacing:-.02em}
+.admin-mode .eyebrow{font-size:14px}
+.admin-mode .asof{font-size:14px}
+.admin-mode .btn{font-size:15px;padding:11px 16px;min-height:42px}
+.admin-mode .content{padding:30px 34px 60px;max-width:1680px}
+.admin-mode .section-title{margin:30px 0 15px}
+.admin-mode .section-title h2{font-size:23px;letter-spacing:-.02em}
+.admin-mode .section-title p{font-size:15px;line-height:1.55;margin-top:5px}
+
+.admin-mode .metric-grid{gap:16px}
+.admin-mode .metric-card{padding:26px 25px}
+.admin-mode .metric-label{font-size:14px;line-height:1.45}
+.admin-mode .metric-value{font-size:34px;margin:9px 0 6px;letter-spacing:-.03em}
+.admin-mode .metric-foot{font-size:14px;line-height:1.45}
+
+.admin-mode .panel{padding:24px 25px}
+.admin-mode .panel-head{margin-bottom:17px}
+.admin-mode .panel-head h3{font-size:18px}
+.admin-mode .panel-head span{font-size:14px}
+.admin-mode .category-row{font-size:15px;padding:13px 0}
+.admin-mode .progress-number{font-size:15px}
+
+.admin-mode .institution-card{padding:22px}
+.admin-mode .institution-card .role{font-size:12px;padding:5px 9px}
+.admin-mode .institution-card h3{font-size:18px;line-height:1.4;margin:12px 0 14px}
+.admin-mode .mini-stat{padding:11px}
+.admin-mode .mini-stat strong{font-size:20px}
+.admin-mode .mini-stat span{font-size:12px;line-height:1.4}
+
+.admin-mode .toolbar{gap:10px;margin-bottom:15px}
+.admin-mode .input,.admin-mode .select,.admin-mode .textarea{font-size:15px;line-height:1.5;padding:11px 12px}
+.admin-mode .filter-select{min-width:170px}
+.admin-mode .data-table th{font-size:13px;line-height:1.35;padding:13px 14px}
+.admin-mode .data-table td{font-size:15px;line-height:1.5;padding:14px}
+.admin-mode .cell-title{font-size:15.5px;line-height:1.45}
+.admin-mode .cell-sub{font-size:13px;line-height:1.55;margin-top:5px}
+.admin-mode .tag{font-size:12px;padding:5px 9px}
+
+.admin-mode .kpi-card{padding:21px}
+.admin-mode .kpi-card h3{font-size:17px;line-height:1.45;margin:10px 0 9px}
+.admin-mode .kpi-target{font-size:14px;line-height:1.5;min-height:42px}
+.admin-mode .kpi-progress{font-size:24px}
+.admin-mode .kpi-owner{font-size:13px;line-height:1.4}
+
+.admin-mode .alert-row{grid-template-columns:96px 1fr 145px 100px;font-size:14px;line-height:1.45;padding:13px 0}
+.admin-mode .alert-row .name{font-size:15px}
+
+.admin-mode .admin-portal-panel{padding:29px 30px}
+.admin-mode .admin-portal-panel h2{font-size:25px;line-height:1.35;margin-bottom:8px}
+.admin-mode .admin-portal-panel p{font-size:16px;line-height:1.6}
+.admin-mode .admin-portal-link{padding:20px}
+.admin-mode .admin-portal-link strong{font-size:17px;line-height:1.45}
+.admin-mode .admin-portal-link span{font-size:14px;line-height:1.4}
+
+.admin-mode .drawer-head{padding:24px 26px 18px}
+.admin-mode .drawer-head h2{font-size:24px}
+.admin-mode .drawer-body{padding:23px 26px 44px}
+.admin-mode .form-field label{font-size:13px;margin-bottom:7px}
+.admin-mode .form-help{font-size:13px;line-height:1.45}
+.admin-mode .detail-block{padding:16px;margin-bottom:14px}
+.admin-mode .detail-block h4{font-size:14px;margin-bottom:9px}
+.admin-mode .detail-block p{font-size:14.5px;line-height:1.65}
+
+.admin-mode .gantt-header>div{font-size:13px;padding:11px}
+.admin-mode .gantt-row>div{padding:11px}
+.admin-mode .gantt-name strong{font-size:14px;line-height:1.4}
+.admin-mode .gantt-name span{font-size:12px;line-height:1.4}
+.admin-mode .empty{font-size:15px;line-height:1.55;padding:38px}
+
+.admin-mode .setting-card h3{font-size:18px}
+.admin-mode .setting-card p{font-size:14px;line-height:1.65}
+.admin-mode .code-note{font-size:13px;line-height:1.55;padding:12px}
+
+@media(max-width:1100px){
+  .admin-mode .nav-item{font-size:14px;padding:12px 7px}
+  .admin-mode .topbar h1{font-size:25px}
+  .admin-mode .content{padding-left:25px;padding-right:25px}
+}
+@media(max-width:720px){
+  .admin-mode .topbar{height:auto;min-height:82px;padding:12px 14px}
+  .admin-mode .topbar h1{font-size:22px}
+  .admin-mode .eyebrow{font-size:12px}
+  .admin-mode .content{padding:20px 14px 84px}
+  .admin-mode .section-title h2{font-size:21px}
+  .admin-mode .section-title p{font-size:14px}
+  .admin-mode .metric-label{font-size:13px}
+  .admin-mode .metric-value{font-size:30px}
+  .admin-mode .metric-foot{font-size:13px}
+  .admin-mode .data-table th{font-size:12px}
+  .admin-mode .data-table td{font-size:14px}
 }

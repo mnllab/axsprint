@@ -6,12 +6,12 @@ window.INITIAL_DATA = {
     "periodStart": "2026-06-01",
     "periodEnd": "2026-12-31",
     "asOf": "2026-08-31",
-    "version": "MVP v14",
+    "version": "MVP v15",
     "completionCriteriaBasis": "사업수행계획서 성과지표·평가기준·산출물과 제공된 마일스톤 자료 기준"
   },
   "institutions": [
     {
-      "name": "경복대학교 산학협력단",
+      "name": "경복대학교",
       "role": "참여기관"
     },
     {
@@ -105,9 +105,9 @@ window.INITIAL_DATA = {
       "category": "과학적 검증",
       "logic": "결과, 산출",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "target": "표준 척도 간 상관관계 r ≥ 0.8, 내적 일치도 확보",
       "deliverable": "o (내용) 대학 개발 진단 도구와 표준 척도 간 상관관계 분석 및 내적 일치도 검증\no (산출물) 타당도·신뢰도 검증 보고서 (상관계수 r ≥ 0.8, 내적 일치도 수치 확인)",
@@ -126,9 +126,9 @@ window.INITIAL_DATA = {
       "category": "과학적 검증",
       "logic": "결과, 산출",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "target": "전문가-AI 진단 일치율 80% 이상",
       "deliverable": "o (내용) 전문가(복지사·의사)의 판단과 AI 분석 결과 간 일치율 비교 분석\no (산출물) 진단 일치도 분석 보고서 (전문가-AI 일치율(%) 수치 확인)",
@@ -147,9 +147,9 @@ window.INITIAL_DATA = {
       "category": "과학적 검증",
       "logic": "결과, 산출",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "target": "WAOI 75점 이상",
       "deliverable": "o (내용) 과학적 타당성(40%)·플랫폼 유용성(30%)·현장 정착성(30%) 합산 점수 산출 및 목표값 달성 여부 확인\no (산출물) WAOI 측정 결과 보고서 (목표: 80점 이상 달성, 1차년도 말 수치 확인)",
@@ -168,9 +168,9 @@ window.INITIAL_DATA = {
       "category": "AI서비스 개발·실증",
       "logic": "결과, 과정",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "target": "기관 11개 이상, 인원 1000명 이상, 사용건수 3000건 이상, 위험군 감지 90%이상",
       "deliverable": "o (내용) 마음로그 앱 기반 개인 사용자 대상 감정 일기·표준 척도 검사·위험 키워드 감지 서비스 실증 운영\no (산출물) 개인 사용자 세션 로그, 감정 분석 결과 데이터, 위험군 감지·대응 이력",
@@ -189,12 +189,12 @@ window.INITIAL_DATA = {
       "category": "AI서비스 개발·실증",
       "logic": "결과, 과정",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "에임랩"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "에임랩"
       ],
       "target": "기관 11개 이상, 사용 건수 1000회 이상, 자동보고서 생성 1000건 이상",
@@ -277,9 +277,9 @@ window.INITIAL_DATA = {
       "category": "AI서비스 개발·실증",
       "logic": "과정, 산출",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "target": "참여 기관 11개소 이상, 수혜 대상자 1,000명 이상, 누적 실증 데이터 3,000건 이상",
       "deliverable": "o (내용) 실증 참여 기관 및 수혜 대상자 모집·운영, 누적 실증 데이터 수집\no (산출물) 리빙랩 운영 결과 보고서 (참여 기관 수, 대상자 수, 누적 데이터 건수 확인)",
@@ -298,9 +298,9 @@ window.INITIAL_DATA = {
       "category": "AI서비스 개발·실증",
       "logic": "산출",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "target": "AI 도구 도입 전후 고독감·위기지수 유의미한 감소 (T-test p < 0.05)",
       "deliverable": "o (내용) AI 도구 도입 전후 대상자의 고독감·위기지수 변화 측정 및 통계 검증\no (산출물) 실증 효과성 분석 보고서 (T-test 기반 전후 변화 수치 확인)",
@@ -319,9 +319,9 @@ window.INITIAL_DATA = {
       "category": "AI서비스 개발·실증",
       "logic": "결과, 산출",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "target": "현장 종사자 및 수혜자 조작 용이성 점수 5점 척도 중 4점 이상",
       "deliverable": "o (내용) 현장 종사자 및 수혜자 대상 지각된 유용성·조작 용이성 설문 조사 실시\no (산출물) 사용자 수용성 조사 결과 보고서 (5점 척도 점수 및 T-test 결과 수치 확인)",
@@ -340,9 +340,9 @@ window.INITIAL_DATA = {
       "category": "AI서비스 개발·실증",
       "logic": "결과, 산출",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "target": "AI 도입 후 기존 복지 업무 프로세스 시간 20% 이상 단축",
       "deliverable": "o (내용) AI 도입 전후 기존 복지 업무 프로세스 시간 단축 및 효율화 정도 측정\no (산출물) 현장 적용성 평가 보고서 (업무 처리 시간 단축률(%) 수치 확인)",
@@ -361,9 +361,9 @@ window.INITIAL_DATA = {
       "category": "지속 가능성",
       "logic": "결과",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "target": "정식 도입 및 재이용 의사 비율 70% 이상",
       "deliverable": "o (내용) AI 도입 전후 기존 복지 업무 프로세스 시간 단축 및 효율화 정도 측정\no (산출물) 현장 적용성 평가 보고서 (업무 처리 시간 단축률(%) 수치 확인)",
@@ -382,12 +382,12 @@ window.INITIAL_DATA = {
       "category": "지속 가능성",
       "logic": "산출",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래"
       ],
       "target": "복지 현장용 AI 데이터 레이블링 표준 지침 및 매뉴얼 1건 이상 제작",
@@ -547,12 +547,12 @@ window.INITIAL_DATA = {
       "id": "ACT-003",
       "name": "실증기관 세부 협의 진행",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "start": "2026-06-01",
@@ -611,12 +611,12 @@ window.INITIAL_DATA = {
       "id": "ACT-006",
       "name": "키오스크 실증 기관 설치 및 운영 개시",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "에임랩"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "에임랩"
       ],
       "start": "2026-09-01",
@@ -635,12 +635,12 @@ window.INITIAL_DATA = {
       "id": "ACT-007",
       "name": "키오스크 기반 실증 운영 지속",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "에임랩"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "에임랩"
       ],
       "start": "2026-10-01",
@@ -659,13 +659,13 @@ window.INITIAL_DATA = {
       "id": "ACT-008",
       "name": "초기 데이터 수집 및 현황 점검",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래",
         "정션메드"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래",
         "정션메드"
       ],
@@ -685,9 +685,9 @@ window.INITIAL_DATA = {
       "id": "ACT-009",
       "name": "사용자 만족도 조사 참여 지원",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "start": "2026-11-01",
       "end": "2026-12-31",
@@ -745,12 +745,12 @@ window.INITIAL_DATA = {
       "id": "ACT-012",
       "name": "2차 자문회의 진행",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래"
       ],
       "start": "2026-08-19",
@@ -789,12 +789,12 @@ window.INITIAL_DATA = {
       "id": "ACT-014",
       "name": "상담센터 연계 실증 운영 개시 (키오스크 포함)",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "start": "2026-09-01",
@@ -877,12 +877,12 @@ window.INITIAL_DATA = {
       "id": "ACT-018",
       "name": "실증 대상자 모집 및 기관 온보딩",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "start": "2026-06-01",
@@ -901,9 +901,9 @@ window.INITIAL_DATA = {
       "id": "ACT-019",
       "name": "표준 척도 기반 타당도·신뢰도 중간 검증",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "start": "2026-10-14",
       "end": "2026-10-31",
@@ -921,12 +921,12 @@ window.INITIAL_DATA = {
       "id": "ACT-020",
       "name": "실증 운영 지속 (케어원·상담센터·키오스크·케어콜)",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "start": "2026-06-01",
@@ -989,12 +989,12 @@ window.INITIAL_DATA = {
       "id": "ACT-023",
       "name": "실증 운영 현황 모니터링 및 총괄 관리",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "start": "2026-07-01",
@@ -1037,9 +1037,9 @@ window.INITIAL_DATA = {
       "id": "ACT-025",
       "name": "사용자·실무자 만족도 조사 실시",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "start": "2026-11-18",
       "end": "2026-12-16",
@@ -1081,12 +1081,12 @@ window.INITIAL_DATA = {
       "id": "ACT-027",
       "name": "실증 결과 취합 및 성과 분석",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "start": "2026-11-01",
@@ -1125,12 +1125,12 @@ window.INITIAL_DATA = {
       "id": "ACT-029",
       "name": "케어콜 기반 실증 운영 개시",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "정션메드"
       ],
       "start": "2026-06-01",
@@ -1149,12 +1149,12 @@ window.INITIAL_DATA = {
       "id": "ACT-030",
       "name": "실증 데이터 수집 기준 및 표준화 체계 수립",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래"
       ],
       "start": "2026-06-01",
@@ -1233,12 +1233,12 @@ window.INITIAL_DATA = {
       "id": "ACT-034",
       "name": "4차 자문회의",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래"
       ],
       "start": "2026-10-28",
@@ -1257,12 +1257,12 @@ window.INITIAL_DATA = {
       "id": "ACT-035",
       "name": "3차 자문회의",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래"
       ],
       "start": "2026-09-16",
@@ -1281,13 +1281,13 @@ window.INITIAL_DATA = {
       "id": "ACT-036",
       "name": "전후 설문지 최종안 수정/검토",
       "planInstitutions": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래",
         "정션메드"
       ],
       "owner": "",
       "collaborators": [
-        "경복대학교 산학협력단",
+        "경복대학교",
         "돌봄과 미래",
         "정션메드"
       ],
@@ -1307,9 +1307,9 @@ window.INITIAL_DATA = {
       "id": "ACT-037",
       "name": "IRB 신청",
       "planInstitutions": [
-        "경복대학교 산학협력단"
+        "경복대학교"
       ],
-      "owner": "경복대학교 산학협력단",
+      "owner": "경복대학교",
       "collaborators": [],
       "start": "2026-08-27",
       "end": "2026-09-09",
@@ -1340,7 +1340,7 @@ window.INITIAL_DATA = {
       "name": "8월 3주차_대면 회의",
       "date": "2026-08-19",
       "location": "서울시 마포구 삼개로 16, 근신빌딩 신관 303호 정션메드 (소울한우 건물 3층)\nhttps://naver.me/5sspDsJr",
-      "participants": "경복대학교 산학협력단",
+      "participants": "경복대학교",
       "link": ""
     },
     {
