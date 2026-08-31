@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#111827" />
-  <title>AX Sprint Control Tower</title>
+  <title>AX Sprint 사업관리</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -26,12 +26,13 @@
       <header class="topbar">
         <div>
           <div class="eyebrow">2026 복지분야 AI 응용제품 신속 상용화 지원사업</div>
-          <h1 id="pageTitle">기관 업무현황</h1>
+          <h1 id="pageTitle">기관 진행현황</h1>
         </div>
         <div class="top-actions">
           <span class="asof" id="asOf"></span>
           <button class="btn secondary" id="quickAddBtn">+ 실행과제</button>
-          <button class="btn primary" id="pmUpdateBtn">기관 업데이트 반영</button>
+          <button class="btn primary" id="pmUpdateBtn">요청·회신 관리</button>
+          <button class="btn admin-access" id="adminAccessBtn">관리자</button>
         </div>
       </header>
 
@@ -51,6 +52,20 @@
   </aside>
 
   <div class="toast" id="toast"></div>
+
+  <div class="login-backdrop" id="loginBackdrop" aria-hidden="true">
+    <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+      <div class="login-title-row">
+        <div><span>AX Sprint</span><h2 id="loginTitle">관리자 접속</h2></div>
+        <button type="button" class="icon-btn" id="loginClose">×</button>
+      </div>
+      <p>관리자 비밀번호를 입력해 주십시오.</p>
+      <input type="password" inputmode="numeric" autocomplete="current-password" class="input login-input" id="adminPassword" placeholder="비밀번호" />
+      <div class="login-error" id="loginError"></div>
+      <button type="button" class="btn primary login-submit" id="loginSubmit">접속</button>
+    </div>
+  </div>
+
   <input type="file" id="importInput" accept="application/json" hidden />
   <script src="data.js"></script>
   <script src="app.js"></script>

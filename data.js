@@ -6,18 +6,10 @@ window.INITIAL_DATA = {
     "periodStart": "2026-06-01",
     "periodEnd": "2026-12-31",
     "asOf": "2026-08-31",
-    "version": "MVP v6",
+    "version": "MVP v11",
     "completionCriteriaBasis": "사업수행계획서 성과지표·평가기준·산출물과 제공된 마일스톤 자료 기준"
   },
   "institutions": [
-    {
-      "name": "정션메드",
-      "role": "주관기관"
-    },
-    {
-      "name": "에임랩",
-      "role": "참여기관"
-    },
     {
       "name": "경복대학교 산학협력단",
       "role": "참여기관"
@@ -25,6 +17,14 @@ window.INITIAL_DATA = {
     {
       "name": "돌봄과 미래",
       "role": "참여기관"
+    },
+    {
+      "name": "에임랩",
+      "role": "참여기관"
+    },
+    {
+      "name": "정션메드",
+      "role": "주관기관"
     }
   ],
   "kpis": [

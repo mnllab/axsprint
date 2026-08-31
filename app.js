@@ -1,14 +1,25 @@
-const STORAGE_KEY = 'ax-sprint-control-tower-v6';
-const LEGACY_STORAGE_KEYS = ['ax-sprint-control-tower-v5','ax-sprint-control-tower-v4'];
+const STORAGE_KEY = 'ax-sprint-control-tower-v11';
+const LEGACY_STORAGE_KEYS = ['ax-sprint-control-tower-v10','ax-sprint-control-tower-v9','ax-sprint-control-tower-v8','ax-sprint-control-tower-v7','ax-sprint-control-tower-v6','ax-sprint-control-tower-v5','ax-sprint-control-tower-v4'];
 const STATUS_OPTIONS = ['예정','진행 중','협업기관 회신 대기','PM 검토 대기','PM 결정 필요','지연','완료 요청','완료 승인','보류'];
 const KPI_STATUS_OPTIONS = ['미측정','준비 중','진행 중','주의','위험','달성','미달'];
 const REQUEST_STATUS = ['요청','수신 확인','처리 중','답변 완료','요청자 확인 대기','종결','기한 초과','PM 조정 필요'];
+const ADMIN_PASSWORD = '0000';
+const PARTNER_ORDER = ['경복대학교 산학협력단','돌봄과 미래','에임랩'];
+const PORTAL_ORDER = ['정션메드',...PARTNER_ORDER];
+const DISPLAY_ORDER = [...PARTNER_ORDER,'정션메드'];
+const PORTAL_CODE = {'main':'정션메드','kbu':'경복대학교 산학협력단','care':'돌봄과 미래','aimlab':'에임랩'};
+const INSTITUTION_CODE = Object.fromEntries(Object.entries(PORTAL_CODE).map(([code,name])=>[name,code]));
 const NAV = [
-  ['workboard','▣','기관 업무현황'],['dashboard','▦','PM 대시보드'],['kpis','◎','성과목표'],['institutions','◫','기관 관리'],['actions','✓','실행과제'],
-  ['requests','⇄','요청·회신'],['memos','▧','소통 메모'],['timeline','▤','전체 일정'],['records','≡','회의·문서'],['settings','⚙','관리설정']
+  ['workboard','▣','기관 진행현황'],['dashboard','▦','PM 대시보드'],['kpis','◎','성과목표'],['institutions','◫','기관 관리'],['actions','✓','실행과제'],
+  ['requests','⇄','요청·회신'],['memos','▧','협의사항'],['timeline','▤','전체 일정'],['records','≡','회의·문서'],['settings','⚙','관리설정']
 ];
 let state = loadState();
-let currentView = 'workboard';
+const urlParams = new URLSearchParams(location.search);
+let isAdmin = sessionStorage.getItem('ax-sprint-admin-v11') === '1' || sessionStorage.getItem('ax-sprint-admin-v10') === '1' || sessionStorage.getItem('ax-sprint-admin-v9') === '1' || sessionStorage.getItem('ax-sprint-admin-v8') === '1' || sessionStorage.getItem('ax-sprint-admin-v7') === '1';
+let portalInstitution = PORTAL_CODE[urlParams.get('inst')] || PORTAL_ORDER[0];
+let portalDetailTab = 'all';
+let portalListFilter = 'all';
+let currentView = isAdmin ? 'dashboard' : 'portal';
 let viewFilter = {};
 
 function clone(v){return JSON.parse(JSON.stringify(v));}
@@ -35,6 +46,15 @@ function loadState(){
     return data;
   } catch(e){ const data=clone(window.INITIAL_DATA); data.memos=data.memos||[]; return data; }
 }
+function orderedInstitutions(){
+  return DISPLAY_ORDER.map(name=>state.institutions.find(i=>i.name===name)).filter(Boolean);
+}
+function normalizeInstitutionOrder(){
+  const ordered=orderedInstitutions();
+  const extra=state.institutions.filter(i=>!DISPLAY_ORDER.includes(i.name));
+  state.institutions=[...ordered,...extra];
+}
+normalizeInstitutionOrder();
 function saveState(){localStorage.setItem(STORAGE_KEY, JSON.stringify(state));}
 function esc(v=''){return String(v).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
 function fmtDate(s){if(!s)return '-';const d=new Date(s+'T00:00:00');return `${d.getMonth()+1}/${d.getDate()}`;}
@@ -48,20 +68,41 @@ function pct(v){return (v===null||v===''||Number.isNaN(Number(v))) ? null : Math
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),1800);}
 
 function renderNav(){
-  const html=NAV.map(([id,icon,label])=>`<button class="nav-item ${id===currentView?'active':''}" data-view="${id}"><span class="nav-icon">${icon}</span><span class="nav-label">${label}</span></button>`).join('');
   const nav=document.getElementById('nav');
-  nav.innerHTML=html;
   const mobile=document.getElementById('mobileNav');
+  if(!isAdmin){nav.innerHTML='';if(mobile)mobile.innerHTML='';return;}
+  const html=NAV.map(([id,icon,label])=>`<button class="nav-item ${id===currentView?'active':''}" data-view="${id}"><span class="nav-icon">${icon}</span><span class="nav-label">${label}</span></button>`).join('');
+  nav.innerHTML=html;
   if(mobile) mobile.innerHTML=html;
   document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{currentView=b.dataset.view;viewFilter={};render();window.scrollTo({top:0,behavior:'smooth'});});
 }
+function setShellMode(){
+  document.body.classList.toggle('institution-mode',!isAdmin);
+  document.body.classList.toggle('admin-mode',isAdmin);
+  document.querySelector('.sidebar-footer strong').textContent='정션메드 PM';
+  document.getElementById('adminAccessBtn').textContent=isAdmin?'관리자 종료':'관리자';
+}
 function render(){
-  renderNav(); document.getElementById('asOf').textContent=`기준일 ${state.project.asOf}`;
-  const titles={workboard:'기관 업무현황',dashboard:'PM 통합 대시보드',kpis:'성과목표',institutions:'기관 관리',actions:'실행과제',requests:'요청·회신 관리',memos:'소통 메모',timeline:'전체 일정',records:'회의·문서',settings:'관리설정'};
-  document.getElementById('pageTitle').textContent=titles[currentView];
+  setShellMode();
+  renderNav();
+  document.getElementById('asOf').textContent=`기준일 ${state.project.asOf}`;
   const quick=document.getElementById('quickAddBtn'), pmBtn=document.getElementById('pmUpdateBtn');
-  if(currentView==='workboard'){quick.style.display='none';pmBtn.style.display='none';}else{quick.style.display='';pmBtn.style.display='';}
   const content=document.getElementById('content');
+  const eyebrow=document.querySelector('.topbar .eyebrow');
+  if(!isAdmin){
+    quick.style.display='none';pmBtn.style.display='none';
+    eyebrow.textContent='2026 복지분야 AI 응용제품 신속 상용화 지원사업';
+    document.getElementById('pageTitle').textContent=`${portalInstitution} 진행현황`;
+    content.innerHTML=institutionPortalHTML(portalInstitution);
+    bindInstitutionPortalEvents();
+    return;
+  }
+  eyebrow.textContent='2026 복지분야 AI 응용제품 신속 상용화 지원사업 · 관리자';
+  const titles={workboard:'기관 진행현황',dashboard:'통합 대시보드',kpis:'성과목표',institutions:'기관 관리',actions:'실행과제',requests:'요청·회신 관리',memos:'협의사항',timeline:'전체 일정',records:'회의·문서',settings:'관리설정'};
+  if(currentView==='portal')currentView='dashboard';
+  document.getElementById('pageTitle').textContent=titles[currentView]||'통합 대시보드';
+  quick.style.display=currentView==='workboard'?'none':'';
+  pmBtn.style.display=currentView==='workboard'?'none':'';
   if(currentView==='workboard') content.innerHTML=workboardHTML();
   if(currentView==='dashboard') content.innerHTML=dashboardHTML();
   if(currentView==='kpis') content.innerHTML=kpisHTML();
@@ -108,7 +149,7 @@ function actionTouchesInstitution(a,name){
 function actionRoleForInstitution(a,name){
   if(a.owner===name) return '책임';
   if((a.collaborators||[]).includes(name)) return '협업';
-  if(!a.owner && (a.planInstitutions||[]).includes(name)) return '공동업무';
+  if(!a.owner && (a.planInstitutions||[]).includes(name)) return '공동참여';
   if((a.planInstitutions||[]).includes(name)) return '참여';
   return '';
 }
@@ -137,7 +178,7 @@ function workActionCard(a,name){
   const criterion=(a.completionCriteria||'').trim();
   const blocker=(a.blocker||'').trim();
   return `<div class="work-card ${a.end&&a.end<today()?'is-overdue':''}" data-action="${a.id}">
-    <div class="work-card-top"><div><span class="tag ${role==='책임'?'blue':role==='공동업무'?'warn':''}">${esc(role||'관련업무')}</span>${statusTag(a.status)}</div>${ddayLabel(a)}</div>
+    <div class="work-card-top"><div><span class="tag ${role==='책임'?'blue':role==='공동참여'?'warn':''}">${esc(role||'관련항목')}</span>${statusTag(a.status)}</div>${ddayLabel(a)}</div>
     <h3>${esc(a.name)}</h3>
     <div class="work-deadline"><strong>${a.end?fmtDate(a.end):'미정'}</strong>까지${a.start?` · ${fmtDate(a.start)} 시작`:''}</div>
     ${criterion?`<div class="work-criterion"><span>완료기준</span>${esc(criterion)}</div>`:`<div class="work-criterion muted"><span>완료기준</span>아직 입력되지 않음</div>`}
@@ -165,8 +206,194 @@ function memoPreviewList(items,name){
   if(!items.length) return '<div class="empty compact">등록된 소통 메모가 없습니다.</div>';
   return `<div class="memo-preview-list">${items.slice(0,8).map(m=>{const msgs=m.messages||[], last=msgs[msgs.length-1]||{};return `<div class="memo-preview" data-memo="${m.id}"><div class="memo-preview-top"><strong>${esc(m.title)}</strong><span>${esc(m.status||'진행')}</span></div><p>${esc(last.text||'메모 내용 없음')}</p><div class="memo-preview-foot"><span>${last.authorInstitution?esc(last.authorInstitution):'-'} · ${last.date?fmtDate(last.date):'-'}</span><span>${msgs.length}건</span></div></div>`}).join('')}</div>`;
 }
+function portalActionData(name){
+  const allRelevant=state.actions.filter(a=>a.owner===name || (a.collaborators||[]).includes(name) || (!a.owner && (a.planInstitutions||[]).includes(name)));
+  const relevant=allRelevant.filter(a=>a.status!=='완료 승인');
+  const items=relevant.map(a=>({...a,diff:a.end?daysDiff(today(),a.end):999,startDiff:a.start?daysDiff(today(),a.start):999,portalRole:a.owner===name?'책임항목':'관련항목'}));
+  const priority=items.filter(a=>(a.end&&a.diff<0) || (a.end&&a.diff>=0&&a.diff<=7) || (a.start&&a.start<=today()&&(!a.end||a.end>=today())))
+    .sort((a,b)=>{const ad=a.diff??999,bd=b.diff??999;if(ad!==bd)return ad-bd;return (a.owner===name?-1:1)-(b.owner===name?-1:1);});
+  const current=items.filter(a=>!a.start || a.start<=today()).sort((a,b)=>(a.diff??999)-(b.diff??999));
+  const upcoming=items.filter(a=>a.start && a.start>today()).sort((a,b)=>a.start.localeCompare(b.start));
+  const requests=state.requests.filter(r=>r.to===name && r.status!=='종결').sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+  const memos=(state.memos||[]).filter(m=>m.institution===name).sort((a,b)=>memoLastDate(b).localeCompare(memoLastDate(a)));
+  const done=allRelevant.filter(a=>a.status==='완료 승인').sort((a,b)=>(b.end||'').localeCompare(a.end||''));
+  return {items,priority,current,upcoming,requests,memos,done,overdue:items.filter(a=>a.end&&a.diff<0),dueSoon:items.filter(a=>a.end&&a.diff>=0&&a.diff<=7)};
+}
+function portalStatusMessage(w){
+  if(w.overdue.length) return `기한이 지난 항목 ${w.overdue.length}건이 있습니다.`;
+  if(w.dueSoon.length) return `7일 이내 마감 항목 ${w.dueSoon.length}건이 있습니다.`;
+  if(w.requests.length) return `회신이 필요한 요청사항 ${w.requests.length}건이 있습니다.`;
+  return '현재 별도 확인이 필요한 긴급사항은 없습니다.';
+}
+function portalStageLabels(a){
+  const n=(a.name||'');
+  if(/설문/.test(n)) return ['초안 작성','기관 검토','최종 수정','확정'];
+  if(/IRB/.test(n)) return ['서류 준비','신청','접수 확인'];
+  if(/KOLAS|성능 평가/.test(n)) return ['시험항목 확정','시험 의뢰','성능 시험','결과서 확보'];
+  if(/키오스크 디자인|규격 논의/.test(n)) return ['요구사항','디자인','규격 검토','확정'];
+  if(/하드웨어 설계/.test(n)) return ['구성 확정','설계','검토','설계 확정'];
+  if(/완성품 제작/.test(n)) return ['부품 준비','제작','연동 점검','설치 준비'];
+  if(/키오스크.*설치|상담센터.*개시|케어콜.*개시/.test(n)) return ['기관 협의','설치·연동 준비','현장 적용','운영 개시'];
+  if(/실증 운영|실증기관|대상자 모집|온보딩/.test(n)) return ['기관 준비','대상자·환경 확보','실증 운영','실적 점검'];
+  if(/데이터.*표준|표준화|수집 기준/.test(n)) return ['기준 정리','형식 통합','품질 점검','확정'];
+  if(/데이터 수집|학습데이터셋/.test(n)) return ['수집체계','데이터 수집','정제·비식별','실적 점검'];
+  if(/만족도 조사/.test(n)) return ['설문 확정','조사 실시','응답 회수','결과 집계'];
+  if(/타당도|신뢰도|성과 분석|결과 취합/.test(n)) return ['데이터 확보','분석','검토','결과 정리'];
+  if(/회의|자문/.test(n)) return ['안건 준비','회의 진행','의견 정리','후속 반영'];
+  if(/보고서|보고회|결과 보고/.test(n)) return ['자료 취합','작성','검토','제출·공유'];
+  if(/개발|고도화|내부 테스트/.test(n)) return ['요구사항','개발·적용','내부 테스트','반영 완료'];
+  return ['준비','진행','검토','완료'];
+}
+function portalStageIndex(a,steps){
+  if(a.status==='완료 승인') return steps.length;
+  if(a.status==='예정') return 0;
+  if(!a.start||!a.end) return Math.min(1,steps.length-1);
+  const start=new Date(a.start+'T00:00:00'), end=new Date(a.end+'T00:00:00'), now=new Date(today()+'T00:00:00');
+  if(now<=start) return 0;
+  if(now>=end) return Math.max(1,steps.length-1);
+  const ratio=(now-start)/Math.max(1,end-start);
+  return Math.max(1,Math.min(steps.length-1,Math.floor(ratio*steps.length)));
+}
+function portalStageFlow(a){
+  const steps=portalStageLabels(a), idx=portalStageIndex(a,steps);
+  return `<div class="portal-stage-flow" aria-label="진행 단계">${steps.map((label,i)=>{
+    const done=i<idx, current=i===idx && idx<steps.length;
+    return `<div class="portal-stage ${done?'done':''} ${current?'current':''}"><span class="stage-dot">${done?'●':'○'}</span><span class="stage-label">${esc(label)}</span></div>${i<steps.length-1?'<span class="stage-line">──</span>':''}`;
+  }).join('')}</div>`;
+}
+function portalActionCard(a){
+  const criterion=(a.completionCriteria||'').trim();
+  return `<article class="portal-task ${a.end&&a.end<today()?'late':''}" data-portal-action="${a.id}">
+    <div class="portal-task-primary"><div class="portal-task-dday">${ddayLabel(a)}</div><div class="portal-task-main"><h3>${esc(a.name)}</h3>${portalStageFlow(a)}</div></div>
+    <div class="portal-deadline"><span>기한</span><strong>${a.end?`${fmtDate(a.end)}까지`:'기한 미정'}</strong></div>
+    <div class="portal-criterion"><span>완료기준</span><p>${esc(criterion||'완료기준 확인 필요')}</p></div>
+    ${a.blocker?`<div class="portal-blocker"><strong>확인사항</strong>${esc(a.blocker)}</div>`:''}
+  </article>`;
+}
+function portalTaskList(items,empty){
+  return items.length?`<div class="portal-task-list">${items.map(portalActionCard).join('')}</div>`:`<div class="portal-empty">${empty}</div>`;
+}
+function portalRequestList(items){
+  if(!items.length)return '<div class="portal-empty">현재 회신할 요청사항이 없습니다.</div>';
+  return `<div class="portal-request-list">${items.map(r=>`<article class="portal-request">
+    <div class="portal-request-top"><div><span>${esc(r.from||'요청기관')} 요청</span><h3>${esc(r.title)}</h3></div><strong>${r.due?`${fmtDate(r.due)}까지`:'기한 미정'}</strong></div>
+    <p class="portal-request-content">${esc(r.content||'요청내용 미입력')}</p>
+    <div class="portal-response"><span>기관 회신</span><p>${r.response?esc(r.response):'아직 회신하지 않았습니다.'}</p></div>
+    ${r.confirmation?`<div class="portal-confirmation"><span>정션메드 확인</span><p>${esc(r.confirmation)}</p></div>`:''}
+    <button type="button" class="btn secondary portal-reply-btn" data-public-request="${r.id}">${r.response?'회신 수정':'회신 작성'}</button>
+  </article>`).join('')}</div>`;
+}
+function portalMemoList(items){
+  if(!items.length)return '<div class="portal-empty">등록된 협의사항이 없습니다.</div>';
+  return `<div class="portal-memo-list">${items.slice(0,12).map(m=>{const msgs=m.messages||[],last=msgs[msgs.length-1]||{};return `<button type="button" class="portal-memo" data-public-memo="${m.id}"><div><strong>${esc(m.title)}</strong><p>${esc(last.text||'내용 없음')}</p></div><span>${last.date?fmtDate(last.date):'-'} · ${msgs.length}건</span></button>`}).join('')}</div>`;
+}
+function portalDoneList(items){
+  if(!items.length)return '<div class="portal-empty">완료 승인된 항목이 없습니다.</div>';
+  return `<div class="portal-done-list">${items.slice(0,20).map(a=>`<div class="portal-done-row"><div><strong>${esc(a.name)}</strong><span>${a.end?fmtDate(a.end):'-'}</span></div><em>완료</em></div>`).join('')}</div>`;
+}
+function portalInstitutionTabsHTML(selected){
+  return `<div class="portal-inst-selector"><div class="portal-inst-label">기관 선택</div><div class="portal-inst-tabs" role="tablist">${PORTAL_ORDER.map(name=>{const inst=state.institutions.find(i=>i.name===name);const role=inst?.role || (name==='정션메드'?'주관기관':'참여기관');return `<button type="button" class="portal-inst-tab ${name===selected?'active':''}" data-portal-inst="${esc(name)}" role="tab" aria-selected="${name===selected?'true':'false'}"><strong>${esc(name)}</strong><span>${esc(role)}</span></button>`}).join('')}</div></div>`;
+}
+function portalListCategory(a,w){
+  if(a.status==='완료 승인') return 'done';
+  if(w.overdue.some(x=>x.id===a.id)) return 'overdue';
+  if(w.dueSoon.some(x=>x.id===a.id)) return 'dueSoon';
+  if(w.upcoming.some(x=>x.id===a.id)) return 'upcoming';
+  return 'active';
+}
+function portalListCategoryLabel(category){
+  return {overdue:'기한 경과',dueSoon:'마감 임박',active:'진행',upcoming:'예정',done:'완료'}[category]||'진행';
+}
+function portalAllItemsForList(w){
+  return [...w.items,...w.done].sort((a,b)=>{
+    const ac=portalListCategory(a,w),bc=portalListCategory(b,w);
+    const order={overdue:0,dueSoon:1,active:2,upcoming:3,done:4};
+    if(order[ac]!==order[bc]) return order[ac]-order[bc];
+    if(ac==='done') return (b.end||'').localeCompare(a.end||'');
+    return (a.end||a.start||'9999-12-31').localeCompare(b.end||b.start||'9999-12-31');
+  });
+}
+function portalListFilterControl(w){
+  const all=portalAllItemsForList(w);
+  const counts={all:all.length,overdue:w.overdue.length,dueSoon:w.dueSoon.length,active:all.filter(a=>portalListCategory(a,w)==='active').length,upcoming:w.upcoming.length,done:w.done.length};
+  const options=[['all','전체'],['overdue','기한 경과'],['dueSoon','마감 임박'],['active','진행'],['upcoming','예정'],['done','완료']];
+  return `<label class="portal-list-filter"><span>보기</span><select id="portalListFilter" aria-label="전체 항목 분류 선택">${options.map(([id,label])=>`<option value="${id}" ${portalListFilter===id?'selected':''}>${label} ${counts[id]}건</option>`).join('')}</select></label>`;
+}
+function portalCompactAllList(w){
+  const all=portalAllItemsForList(w);
+  const filtered=portalListFilter==='all'?all:all.filter(a=>portalListCategory(a,w)===portalListFilter);
+  if(!filtered.length)return '<div class="portal-empty compact-list-empty">선택한 분류에 해당하는 항목이 없습니다.</div>';
+  return `<div class="portal-compact-list">${filtered.map(a=>{
+    const category=portalListCategory(a,w);
+    const label=portalListCategoryLabel(category);
+    return `<button type="button" class="portal-compact-item ${category}" data-portal-item="${a.id}" data-portal-category="${category}" title="${esc(a.name)}">
+      <span class="compact-status-tag ${category}">${label}</span>
+      <strong>${esc(a.name)}</strong>
+      <span class="compact-date">${a.end?fmtDate(a.end):a.start?`${fmtDate(a.start)} 시작`:'기한 미정'}</span>
+    </button>`;
+  }).join('')}</div>`;
+}
+function portalDetailTabsHTML(){
+  const tabs=[['all','전체 항목'],['overdue','기한 경과'],['dueSoon','마감 임박'],['upcoming','예정 일정'],['requests','요청·회신'],['memos','협의사항'],['done','완료']];
+  return `<div class="portal-detail-tabs" role="tablist">${tabs.map(([id,label])=>`<button type="button" class="portal-detail-tab ${portalDetailTab===id?'active':''}" data-portal-detail="${id}" role="tab" aria-selected="${portalDetailTab===id?'true':'false'}">${label}</button>`).join('')}</div>`;
+}
+function portalDetailContent(w){
+  if(portalDetailTab==='overdue') return portalTaskList(w.overdue,'기한이 경과한 항목이 없습니다.');
+  if(portalDetailTab==='dueSoon') return portalTaskList(w.dueSoon,'7일 이내 마감되는 항목이 없습니다.');
+  if(portalDetailTab==='upcoming') return portalTaskList(w.upcoming,'예정된 항목이 없습니다.');
+  if(portalDetailTab==='requests') return portalRequestList(w.requests);
+  if(portalDetailTab==='memos') return `<div class="portal-detail-action"><button type="button" class="btn secondary" id="publicAddMemo">협의사항 작성</button></div>${portalMemoList(w.memos)}`;
+  if(portalDetailTab==='done') return portalTaskList(w.done,'완료 승인된 항목이 없습니다.');
+  return portalTaskList(w.items,'등록된 항목이 없습니다.');
+}
+function portalDistributionHTML(w){
+  const overdue=w.overdue.length;
+  const dueSoon=w.dueSoon.length;
+  const overdueIds=new Set(w.overdue.map(a=>a.id));
+  const dueSoonIds=new Set(w.dueSoon.map(a=>a.id));
+  const active=w.current.filter(a=>!overdueIds.has(a.id)&&!dueSoonIds.has(a.id)).length;
+  const upcoming=w.upcoming.length;
+  const done=w.done.length;
+  const total=Math.max(1,overdue+dueSoon+active+upcoming+done);
+  const parts=[
+    ['done','완료',done],['active','진행',active],['soon','마감 임박',dueSoon],['late','기한 경과',overdue],['upcoming','예정',upcoming]
+  ];
+  return `<div class="portal-visual">
+    <div class="portal-visual-head"><div><span>진행 현황</span><strong>전체 ${overdue+dueSoon+active+upcoming+done}건</strong></div><div class="portal-visual-rate">완료 <b>${done}</b>건</div></div>
+    <div class="portal-status-bar" aria-label="진행 현황 시각화">${parts.map(([cls,label,count])=>count?`<span class="status-segment ${cls}" style="width:${(count/total*100).toFixed(2)}%" title="${label} ${count}건"></span>`:'').join('')}</div>
+    <div class="portal-status-legend">${parts.map(([cls,label,count])=>`<span><i class="legend-dot ${cls}"></i>${label} <strong>${count}</strong></span>`).join('')}</div>
+  </div>`;
+}
+function institutionPortalHTML(name){
+  const w=portalActionData(name);
+  const focus=w.priority.slice(0,3);
+  const hidden=Math.max(0,w.priority.length-focus.length);
+  return `<div class="institution-portal">
+    ${portalInstitutionTabsHTML(name)}
+    <section class="portal-hero">
+      <div><span class="portal-kicker">기관 진행현황</span><h2>${esc(name)}</h2><p>현재 진행사항, 일정 및 협업 요청을 확인합니다.</p></div>
+      <div class="portal-date"><span>기준일</span><strong>${fmtDate(today())}</strong></div>
+    </section>
+    <section class="portal-situation">
+      <div class="situation-message">${esc(portalStatusMessage(w))}</div>
+      <div class="situation-counts" aria-label="빠른 현황 보기">
+        <button type="button" class="situation-count-btn ${w.overdue.length?'has-alert':''}" data-portal-jump="overdue"><span>기한 경과</span><strong>${w.overdue.length}</strong><em>건</em></button>
+        <button type="button" class="situation-count-btn" data-portal-jump="dueSoon"><span>마감 임박</span><strong>${w.dueSoon.length}</strong><em>건</em></button>
+        <button type="button" class="situation-count-btn" data-portal-jump="requests"><span>회신 필요</span><strong>${w.requests.length}</strong><em>건</em></button>
+      </div>
+    </section>
+
+    <section class="portal-section portal-focus-section"><div class="portal-section-head"><div><h2>현재 주요 진행사항</h2><p>현재 진행 중이거나 기한이 가까운 항목을 표시합니다.</p></div><strong>${w.priority.length}건</strong></div>${portalTaskList(focus,'현재 표시할 주요 진행사항이 없습니다.')}${hidden?`<div class="portal-more-note">추가 ${hidden}건은 아래 전체 항목에서 확인할 수 있습니다.</div>`:''}</section>
+
+    <section class="portal-section portal-request-summary"><div class="portal-section-head"><div><h2>협업 요청</h2><p>현재 회신이 필요한 요청사항입니다.</p></div><strong>${w.requests.length}건</strong></div>${w.requests.length?portalRequestList(w.requests.slice(0,2)):'<div class="portal-empty">현재 회신할 요청사항이 없습니다.</div>'}</section>
+
+    <section class="portal-section portal-list-section"><div class="portal-section-head portal-list-head"><div><h2>전체 항목</h2><p>분류를 선택하면 해당 항목만 목록으로 표시합니다.</p></div>${portalListFilterControl(w)}</div>${portalCompactAllList(w)}</section>
+
+    <section class="portal-section portal-detail-section"><div class="portal-section-head portal-detail-head"><div><h2>상세 현황</h2><p>필요한 분류를 선택하여 세부 내용을 확인합니다.</p></div></div>${portalDetailTabsHTML()}<div class="portal-detail-content">${portalDetailContent(w)}</div></section>
+  </div>`;
+}
 function workboardHTML(){
-  const selected=viewFilter.workInstitution || state.project.leadInstitution || state.institutions[0].name;
+  const selected=viewFilter.workInstitution || PARTNER_ORDER[0];
   const inst=state.institutions.find(i=>i.name===selected)||state.institutions[0];
   const w=workboardData(inst.name);
   const now=[...w.overdue,...w.dueSoon,...w.active].filter((a,i,arr)=>arr.findIndex(x=>x.id===a.id)===i);
@@ -174,50 +401,25 @@ function workboardHTML(){
   const responsibilityOpen=w.open.filter(a=>a.owner===inst.name).length;
   const relatedUnowned=w.open.filter(a=>!a.owner && (a.planInstitutions||[]).includes(inst.name)).length;
   return `<div class="workboard-shell">
-    <div class="institution-tabs" role="tablist" aria-label="기관 업무 선택">
-      ${state.institutions.map(i=>`<button type="button" class="institution-tab ${i.name===inst.name?'active':''}" data-work-inst="${esc(i.name)}" role="tab" aria-selected="${i.name===inst.name?'true':'false'}"><span>${esc(i.name)}</span><small>${esc(i.role)}</small></button>`).join('')}
+    <div class="institution-tabs" role="tablist" aria-label="기관 진행항목 선택">
+      ${orderedInstitutions().map(i=>`<button type="button" class="institution-tab ${i.name===inst.name?'active':''}" data-work-inst="${esc(i.name)}" role="tab"><span>${esc(i.name)}</span><small>${esc(i.role)}</small></button>`).join('')}
     </div>
-    <div class="workboard-hero">
-      <div>
-        <div class="eyebrow">기관별 실행현황</div>
-        <h2>${esc(inst.name)}</h2>
-        <p>현재 수행업무, 마감일, 완료기준, 요청사항 및 회신내용을 확인합니다.</p>
-      </div>
-      <div class="workboard-asof"><span>기준일</span><strong>${fmtDate(today())}</strong></div>
-    </div>
-    <div class="work-summary-grid">
-      ${metric('지연',w.overdue.length+'건','기한이 지난 업무',w.overdue.length?'bad':'good')}
-      ${metric('7일 이내 마감',w.dueSoon.length+'건','이번 주 우선 확인')}
-      ${metric('현재 진행',responsibilityOpen+'건','책임기관으로 수행 중')}
-      ${metric('회신 필요',w.requests.length+'건','이 기관이 답해야 하는 요청')}
-      ${metric('역할 확정 필요',relatedUnowned+'건','공동업무 중 책임 미확정',relatedUnowned?'bad':'good')}
-    </div>
-
-    <div class="section-title"><div><h2>현재 수행업무</h2><p>기한 경과, 7일 이내 마감, 진행 중 업무 순으로 표시</p></div><span class="tag blue">${now.length}건</span></div>
-    ${workList(now,inst.name,'현재 수행 중이거나 7일 이내 마감되는 업무가 없습니다.')}
-
-    <div class="communication-grid">
-      <div>
-        <div class="section-title"><div><h2>요청사항 및 기관 회신</h2><p>정션메드 또는 협업기관의 요청, 회신기한, 기관 답변을 한 화면에서 확인</p></div><button class="btn ghost compact-btn" id="newRequestForInst">+ 요청 등록</button></div>
-        ${requestMiniList(w.requests)}
-      </div>
-      <div>
-        <div class="section-title"><div><h2>소통 메모</h2><p>확인사항, 협의내용, 후속 답변을 기록하는 업무 메모</p></div><button class="btn ghost compact-btn" id="newMemoForInst">+ 메모 등록</button></div>
-        <div class="panel">${memoPreviewList(institutionMemoThreads(inst.name),inst.name)}</div>
-      </div>
-    </div>
-
-    <div class="section-title"><div><h2>향후 30일 예정업무</h2><p>30일 이내 착수 예정 업무</p></div></div>
-    ${workList(next30,inst.name,'30일 이내 새로 시작할 업무가 없습니다.')}
-
-    <div class="section-title"><div><h2>최근 완료</h2><p>최근 완료 승인된 업무</p></div></div>
-    <div class="panel recent-done">${w.done.slice(0,6).map(a=>`<div class="done-row" data-action="${a.id}"><span>✓</span><div><strong>${esc(a.name)}</strong><div class="cell-sub">${a.end?fmtDate(a.end):'-'} 완료</div></div></div>`).join('')||'<div class="empty compact">완료된 업무가 없습니다.</div>'}</div>
+    <div class="workboard-hero"><div><div class="eyebrow">기관별 실행현황</div><h2>${esc(inst.name)}</h2><p>현재 주요 진행사항, 마감일, 완료기준, 요청사항 및 회신내용을 확인합니다.</p></div><div class="workboard-asof"><span>기준일</span><strong>${fmtDate(today())}</strong></div></div>
+    <div class="work-summary-grid">${metric('지연',w.overdue.length+'건','기한이 지난 항목',w.overdue.length?'bad':'good')}${metric('7일 이내 마감',w.dueSoon.length+'건','마감 임박 항목')}${metric('현재 진행',responsibilityOpen+'건','책임기관으로 수행 중')}${metric('회신 필요',w.requests.length+'건','해당 기관 답변 필요')}${metric('역할 확인',relatedUnowned+'건','책임기관 미확정',relatedUnowned?'bad':'good')}</div>
+    <div class="section-title"><div><h2>현재 주요 진행사항</h2><p>기한 경과, 7일 이내 마감, 진행 중 항목 순으로 표시</p></div><span class="tag blue">${now.length}건</span></div>${workList(now,inst.name,'현재 진행 중이거나 7일 이내 마감되는 항목이 없습니다.')}
+    <div class="communication-grid"><div><div class="section-title"><div><h2>요청사항 및 기관 회신</h2></div><button class="btn ghost compact-btn" id="newRequestForInst">+ 요청 등록</button></div>${requestMiniList(w.requests)}</div><div><div class="section-title"><div><h2>협의사항</h2></div><button class="btn ghost compact-btn" id="newMemoForInst">+ 메모 등록</button></div><div class="panel">${memoPreviewList(institutionMemoThreads(inst.name),inst.name)}</div></div></div>
+    <div class="section-title"><div><h2>향후 30일 예정 일정</h2></div></div>${workList(next30,inst.name,'30일 이내 새로 시작할 일정이 없습니다.')}
   </div>`;
 }
 
+function adminPortalLinksHTML(){
+  const files={'정션메드':'junctionmed.html','경복대학교 산학협력단':'kyungbok.html','돌봄과 미래':'carefuture.html','에임랩':'aimlab.html'};
+  return `<div class="admin-portal-panel"><div><span class="portal-kicker">기관용 화면</span><h2>기관별 접속 화면</h2><p>기관 화면은 현재 주요 진행사항을 먼저 표시하고, 전체 진행항목·예정 일정·요청·회신·협의사항·완료 현황을 선택해서 확인하도록 구성했습니다.</p></div><div class="admin-portal-links">${PORTAL_ORDER.map(name=>`<a class="admin-portal-link" href="${files[name]}" target="_blank"><strong>${esc(name)}</strong><span>기관 화면 열기 ↗</span></a>`).join('')}</div></div>`;
+}
 function dashboardHTML(){
   const am=actionMetrics(), km=kpiMetrics();
   return `
+  ${adminPortalLinksHTML()}
   <div class="metric-grid">
     ${metric('성과 달성률',km.avg===null?'입력 필요':km.avg+'%',km.avg===null?`21개 지표 중 현재값 ${km.entered}개 입력`:`${km.entered}/${km.total}개 지표 반영`)}
     ${metric('실행과제 완료율',am.rate+'%',`${am.done}/${am.all}개 완료 승인`)}
@@ -228,14 +430,14 @@ function dashboardHTML(){
   <div class="section-title"><div><h2>성과영역 현황</h2><p>성과값이 입력된 지표 기준. 미입력 지표는 별도 표시</p></div><button class="btn ghost" data-go="kpis">전체 성과목표 보기</button></div>
   <div class="grid-2">
     <div class="panel">${categoryStats().map(c=>`<div class="category-row"><div><strong>${esc(c.name)}</strong><div class="cell-sub">${c.items}개 지표 · 현재값 ${c.entered}개 입력</div></div><div class="progress-track"><div class="progress-fill ${c.avg===null?'neutral':''}" style="width:${c.avg||0}%"></div></div><div class="progress-number">${c.avg===null?'미측정':c.avg+'%'}</div></div>`).join('')}</div>
-    <div class="panel"><div class="panel-head"><h3>지금 확인할 업무</h3><span>기준일 ${fmtDate(today())}</span></div>${urgentListHTML(urgentActions())}</div>
+    <div class="panel"><div class="panel-head"><h3>주요 확인사항</h3><span>기준일 ${fmtDate(today())}</span></div>${urgentListHTML(urgentActions())}</div>
   </div>
-  <div class="section-title"><div><h2>기관별 현황</h2><p>책임업무·협업업무·지연·회신요청을 한 번에 확인</p></div></div>
-  <div class="institution-grid">${state.institutions.map(i=>institutionCard(i)).join('')}</div>`;
+  <div class="section-title"><div><h2>기관별 현황</h2><p>책임항목·협업항목·지연·회신요청을 한 번에 확인</p></div></div>
+  <div class="institution-grid">${orderedInstitutions().map(i=>institutionCard(i)).join('')}</div>`;
 }
 function metric(label,value,foot,tone=''){return `<div class="metric-card"><div class="metric-label">${label}</div><div class="metric-value">${value}</div><div class="metric-foot ${tone}">${foot}</div></div>`;}
-function institutionCard(i){const s=institutionStats(i.name);return `<div class="institution-card" data-inst="${esc(i.name)}"><span class="role">${esc(i.role)}</span><h3>${esc(i.name)}</h3><div class="mini-stats"><div class="mini-stat"><strong>${s.responsibility}</strong><span>책임업무</span></div><div class="mini-stat"><strong>${s.late}</strong><span>지연</span></div><div class="mini-stat"><strong>${s.req}</strong><span>회신필요</span></div></div></div>`;}
-function urgentListHTML(items){if(!items.length)return '<div class="empty">현재 14일 이내 마감 또는 지연 업무가 없습니다.</div>';return `<div class="alert-list">${items.map(a=>`<div class="alert-row" data-action="${a.id}"><div>${a.diff<0?'<span class="tag bad">지연 '+Math.abs(a.diff)+'일</span>':a.diff===0?'<span class="tag warn">오늘 마감</span>':'<span class="tag warn">D-'+a.diff+'</span>'}</div><div class="name">${esc(a.name)}<div class="cell-sub">${esc(ownerDisplay(a.owner))}</div></div><div>${statusTag(a.status)}</div><div class="${a.diff<0?'date-bad':'date-warn'}">${fmtDate(a.end)}</div></div>`).join('')}</div>`;}
+function institutionCard(i){const s=institutionStats(i.name);return `<div class="institution-card" data-inst="${esc(i.name)}"><span class="role">${esc(i.role)}</span><h3>${esc(i.name)}</h3><div class="mini-stats"><div class="mini-stat"><strong>${s.responsibility}</strong><span>책임항목</span></div><div class="mini-stat"><strong>${s.late}</strong><span>지연</span></div><div class="mini-stat"><strong>${s.req}</strong><span>회신필요</span></div></div></div>`;}
+function urgentListHTML(items){if(!items.length)return '<div class="empty">현재 14일 이내 마감 또는 지연 항목이 없습니다.</div>';return `<div class="alert-list">${items.map(a=>`<div class="alert-row" data-action="${a.id}"><div>${a.diff<0?'<span class="tag bad">지연 '+Math.abs(a.diff)+'일</span>':a.diff===0?'<span class="tag warn">오늘 마감</span>':'<span class="tag warn">D-'+a.diff+'</span>'}</div><div class="name">${esc(a.name)}<div class="cell-sub">${esc(ownerDisplay(a.owner))}</div></div><div>${statusTag(a.status)}</div><div class="${a.diff<0?'date-bad':'date-warn'}">${fmtDate(a.end)}</div></div>`).join('')}</div>`;}
 
 function kpisHTML(){
   const cats=['전체',...new Set(state.kpis.map(x=>x.category))];
@@ -244,15 +446,15 @@ function kpisHTML(){
 function renderKpiCards(items){return items.map(k=>`<div class="kpi-card" data-kpi="${k.id}" data-cat="${esc(k.category)}" data-status="${esc(k.status)}" data-search="${esc((k.name+' '+k.target).toLowerCase())}"><span class="tag blue">${esc(k.category)}</span><h3>${esc(k.name)}</h3><div class="kpi-target">${esc(k.target)}</div><div class="kpi-bottom"><div><div class="kpi-progress">${pct(k.progress)===null?'—':pct(k.progress)+'%'}</div><div class="cell-sub">${statusTag(k.status)}</div></div><div class="kpi-owner">책임기관<br><strong>${esc(ownerDisplay(k.owner))}</strong></div></div></div>`).join('');}
 
 function institutionsHTML(){
-  const selected=viewFilter.institution || state.institutions[0].name;
+  const selected=viewFilter.institution || PARTNER_ORDER[0];
   const inst=state.institutions.find(i=>i.name===selected)||state.institutions[0];
   const s=institutionStats(inst.name);
   const responsible=state.actions.filter(a=>a.owner===inst.name);
   const collab=state.actions.filter(a=>(a.collaborators||[]).includes(inst.name));
   const relatedKpi=state.kpis.filter(k=>k.owner===inst.name||(k.collaborators||[]).includes(inst.name));
-  return `<div class="institution-grid">${state.institutions.map(i=>institutionCard(i)).join('')}</div>
-  <div class="section-title"><div><h2>${esc(inst.name)} 상세</h2><p>${esc(inst.role)} · 책임업무 ${s.responsibility}건 · 협업업무 ${s.collab}건</p></div></div>
-  <div class="metric-grid">${metric('책임 실행과제',s.responsibility+'건','완료 책임')}${metric('협업 실행과제',s.collab+'건','지원·검토')}${metric('지연',s.late+'건','책임업무 기준',s.late?'bad':'good')}${metric('회신 필요',s.req+'건','협업요청 수신')}${metric('관련 성과목표',relatedKpi.length+'개','책임 또는 협업')}</div>
+  return `<div class="institution-grid">${orderedInstitutions().map(i=>institutionCard(i)).join('')}</div>
+  <div class="section-title"><div><h2>${esc(inst.name)} 상세</h2><p>${esc(inst.role)} · 책임항목 ${s.responsibility}건 · 협업항목 ${s.collab}건</p></div></div>
+  <div class="metric-grid">${metric('책임 실행과제',s.responsibility+'건','완료 책임')}${metric('협업 실행과제',s.collab+'건','지원·검토')}${metric('지연',s.late+'건','책임항목 기준',s.late?'bad':'good')}${metric('회신 필요',s.req+'건','협업요청 수신')}${metric('관련 성과목표',relatedKpi.length+'개','책임 또는 협업')}</div>
   <div class="section-title"><div><h2>책임 실행과제</h2></div></div>${actionTableHTML(responsible)}
   <div class="section-title"><div><h2>협업 실행과제</h2></div></div>${actionTableHTML(collab)}`;
 }
@@ -305,14 +507,29 @@ function bindViewEvents(){
   if(document.getElementById('kpiSearch')){['input','change'].forEach(evt=>{document.getElementById('kpiSearch').addEventListener(evt,filterKpis);document.getElementById('kpiCategory').addEventListener(evt,filterKpis);document.getElementById('kpiStatus').addEventListener(evt,filterKpis);});}
   if(document.getElementById('actionSearch')){['input','change'].forEach(evt=>{document.getElementById('actionSearch').addEventListener(evt,filterActions);document.getElementById('actionInst').addEventListener(evt,filterActions);document.getElementById('actionStatus').addEventListener(evt,filterActions);});document.getElementById('addAction').onclick=()=>openAction();}
   if(document.getElementById('addRequest')) document.getElementById('addRequest').onclick=()=>openRequest();
-  if(document.getElementById('newRequestForInst')) document.getElementById('newRequestForInst').onclick=()=>openRequest(null, viewFilter.workInstitution || state.project.leadInstitution);
-  if(document.getElementById('newMemoForInst')) document.getElementById('newMemoForInst').onclick=()=>openMemo(null, viewFilter.workInstitution || state.project.leadInstitution);
+  if(document.getElementById('newRequestForInst')) document.getElementById('newRequestForInst').onclick=()=>openRequest(null, viewFilter.workInstitution || PARTNER_ORDER[0]);
+  if(document.getElementById('newMemoForInst')) document.getElementById('newMemoForInst').onclick=()=>openMemo(null, viewFilter.workInstitution || PARTNER_ORDER[0]);
   if(document.getElementById('addMemo')) document.getElementById('addMemo').onclick=()=>openMemo();
   if(document.getElementById('memoInstitutionFilter')) document.getElementById('memoInstitutionFilter').onchange=e=>{viewFilter.memoInstitution=e.target.value;render();};
   if(document.getElementById('saveProjectSetting')) document.getElementById('saveProjectSetting').onclick=()=>{state.project.asOf=document.getElementById('asOfSetting').value;saveState();toast('기준일을 저장했습니다.');render();};
   if(document.getElementById('exportJson')) document.getElementById('exportJson').onclick=exportJson;
   if(document.getElementById('importJson')) document.getElementById('importJson').onclick=()=>document.getElementById('importInput').click();
-  if(document.getElementById('resetData')) document.getElementById('resetData').onclick=()=>{if(confirm('현재 수정 데이터를 모두 지우고 초기 상태로 복원할까요?')){state=clone(window.INITIAL_DATA);saveState();render();toast('초기 데이터로 복원했습니다.');}};
+  if(document.getElementById('resetData')) document.getElementById('resetData').onclick=()=>{if(confirm('현재 수정 데이터를 모두 지우고 초기 상태로 복원할까요?')){state=clone(window.INITIAL_DATA);normalizeInstitutionOrder();saveState();render();toast('초기 데이터로 복원했습니다.');}};
+}
+function bindInstitutionPortalEvents(){
+  document.querySelectorAll('[data-portal-inst]').forEach(b=>b.onclick=()=>{
+    portalInstitution=b.dataset.portalInst;portalDetailTab='all';portalListFilter='all';
+    const code=INSTITUTION_CODE[portalInstitution]||'main';
+    history.replaceState(null,'',`index.html?inst=${encodeURIComponent(code)}`);
+    render();window.scrollTo({top:0,behavior:'smooth'});
+  });
+  document.querySelectorAll('[data-portal-detail]').forEach(b=>b.onclick=()=>{portalDetailTab=b.dataset.portalDetail;render();setTimeout(()=>document.querySelector('.portal-detail-section')?.scrollIntoView({behavior:'smooth',block:'start'}),20);});
+  const portalListFilterEl=document.getElementById('portalListFilter');if(portalListFilterEl)portalListFilterEl.onchange=()=>{portalListFilter=portalListFilterEl.value;render();setTimeout(()=>document.querySelector('.portal-list-section')?.scrollIntoView({behavior:'smooth',block:'start'}),20);};
+  document.querySelectorAll('[data-portal-jump]').forEach(b=>b.onclick=()=>{portalDetailTab=b.dataset.portalJump;render();setTimeout(()=>document.querySelector('.portal-detail-section')?.scrollIntoView({behavior:'smooth',block:'start'}),20);});
+  document.querySelectorAll('[data-portal-item]').forEach(b=>b.onclick=()=>{const id=b.dataset.portalItem;const category=b.dataset.portalCategory||'active';portalDetailTab=category==='overdue'?'overdue':category==='dueSoon'?'dueSoon':category==='upcoming'?'upcoming':category==='done'?'done':'all';render();setTimeout(()=>{const target=document.querySelector(`[data-portal-action="${id}"]`);(target||document.querySelector('.portal-detail-section'))?.scrollIntoView({behavior:'smooth',block:'center'});if(target){target.classList.add('portal-task-flash');setTimeout(()=>target.classList.remove('portal-task-flash'),1100);}},30);});
+  document.querySelectorAll('[data-public-request]').forEach(b=>b.onclick=()=>openInstitutionRequest(b.dataset.publicRequest,portalInstitution));
+  document.querySelectorAll('[data-public-memo]').forEach(b=>b.onclick=()=>openInstitutionMemo(b.dataset.publicMemo,portalInstitution));
+  const add=document.getElementById('publicAddMemo');if(add)add.onclick=()=>openInstitutionMemo(null,portalInstitution);
 }
 function filterKpis(){const q=document.getElementById('kpiSearch').value.trim().toLowerCase(),cat=document.getElementById('kpiCategory').value,st=document.getElementById('kpiStatus').value;const list=state.kpis.filter(k=>(!q||(k.name+' '+k.target).toLowerCase().includes(q))&&(cat==='전체'||k.category===cat)&&(st==='전체 상태'||k.status===st));document.getElementById('kpiGrid').innerHTML=renderKpiCards(list);document.querySelectorAll('[data-kpi]').forEach(x=>x.onclick=()=>openKpi(x.dataset.kpi));}
 function filterActions(){const q=document.getElementById('actionSearch').value.trim().toLowerCase(),inst=document.getElementById('actionInst').value,st=document.getElementById('actionStatus').value;const list=state.actions.filter(a=>(!q||a.name.toLowerCase().includes(q))&&(inst==='전체 기관'||(inst==='책임기관 미확정'&&!a.owner)||a.owner===inst||(a.collaborators||[]).includes(inst))&&(st==='전체 상태'||a.status===st));document.getElementById('actionTableHolder').innerHTML=actionTableHTML(list);document.querySelectorAll('[data-action]').forEach(x=>x.onclick=()=>openAction(x.dataset.action));}
@@ -336,12 +553,46 @@ function openRequest(id,defaultTo=''){let r=id?state.requests.find(x=>x.id===id)
 
 function openMemo(id,defaultInstitution=''){let m=id?(state.memos||[]).find(x=>x.id===id):null;const isNew=!m;if(!m)m={id:'MEM-'+String((state.memos||[]).length+1).padStart(3,'0'),title:'',institution:defaultInstitution||'',relatedAction:'',status:'진행',messages:[]};
   const messages=(m.messages||[]).map(msg=>`<div class="message-item ${msg.authorInstitution==='정션메드'?'pm-message':''}"><div class="message-meta"><strong>${esc(msg.authorInstitution||msg.author||'-')}</strong><span>${msg.date?fmtDate(msg.date):'-'}</span></div><p>${esc(msg.text||'')}</p></div>`).join('') || '<div class="empty compact">아직 작성된 메모가 없습니다.</div>';
-  openDrawer(isNew?'NEW MEMO':m.id,isNew?'소통 메모 등록':m.title,`<div class="form-field"><label>메모 제목</label><input class="input" id="mTitle" value="${esc(m.title)}"></div><div class="form-grid"><div class="form-field"><label>관련 기관</label><select class="select" id="mInstitution"><option value="">기관 선택</option>${state.institutions.map(i=>`<option value="${esc(i.name)}" ${i.name===m.institution?'selected':''}>${esc(i.name)}</option>`).join('')}</select></div><div class="form-field"><label>상태</label><select class="select" id="mStatus"><option ${m.status==='진행'?'selected':''}>진행</option><option ${m.status==='확인 완료'?'selected':''}>확인 완료</option><option ${m.status==='보류'?'selected':''}>보류</option></select></div></div><div class="form-field"><label>관련 실행과제</label><select class="select" id="mAction"><option value="">미연결</option>${state.actions.map(a=>`<option value="${esc(a.id)}" ${a.id===m.relatedAction?'selected':''}>${esc(a.id+' · '+a.name)}</option>`).join('')}</select></div>${isNew?'':`<div class="drawer-section-divider"><span>소통 기록</span></div><div class="message-thread">${messages}</div>`}<div class="drawer-section-divider"><span>${isNew?'첫 메모':'답변·추가 메모'}</span></div><div class="form-grid"><div class="form-field"><label>작성기관</label><select class="select" id="mAuthorInstitution">${state.institutions.map(i=>`<option value="${esc(i.name)}" ${i.name===(isNew?'정션메드':(defaultInstitution||m.institution))?'selected':''}>${esc(i.name)}</option>`).join('')}</select></div><div class="form-field"><label>작성일</label><input type="date" class="input" id="mDate" value="${today()}"></div></div><div class="form-field"><label>내용</label><textarea class="textarea response-textarea" id="mText" placeholder="확인사항, 협의내용, 답변, 후속조치를 입력"></textarea></div><div class="drawer-actions"><button class="btn secondary" id="closeMemo">취소</button><button class="btn primary" id="saveMemo">${isNew?'등록':'답변 저장'}</button></div>`);
+  openDrawer(isNew?'NEW MEMO':m.id,isNew?'협의사항 등록':m.title,`<div class="form-field"><label>메모 제목</label><input class="input" id="mTitle" value="${esc(m.title)}"></div><div class="form-grid"><div class="form-field"><label>관련 기관</label><select class="select" id="mInstitution"><option value="">기관 선택</option>${state.institutions.map(i=>`<option value="${esc(i.name)}" ${i.name===m.institution?'selected':''}>${esc(i.name)}</option>`).join('')}</select></div><div class="form-field"><label>상태</label><select class="select" id="mStatus"><option ${m.status==='진행'?'selected':''}>진행</option><option ${m.status==='확인 완료'?'selected':''}>확인 완료</option><option ${m.status==='보류'?'selected':''}>보류</option></select></div></div><div class="form-field"><label>관련 실행과제</label><select class="select" id="mAction"><option value="">미연결</option>${state.actions.map(a=>`<option value="${esc(a.id)}" ${a.id===m.relatedAction?'selected':''}>${esc(a.id+' · '+a.name)}</option>`).join('')}</select></div>${isNew?'':`<div class="drawer-section-divider"><span>소통 기록</span></div><div class="message-thread">${messages}</div>`}<div class="drawer-section-divider"><span>${isNew?'첫 메모':'답변·추가 메모'}</span></div><div class="form-grid"><div class="form-field"><label>작성기관</label><select class="select" id="mAuthorInstitution">${state.institutions.map(i=>`<option value="${esc(i.name)}" ${i.name===(isNew?'정션메드':(defaultInstitution||m.institution))?'selected':''}>${esc(i.name)}</option>`).join('')}</select></div><div class="form-field"><label>작성일</label><input type="date" class="input" id="mDate" value="${today()}"></div></div><div class="form-field"><label>내용</label><textarea class="textarea response-textarea" id="mText" placeholder="확인사항, 협의내용, 답변, 후속조치를 입력"></textarea></div><div class="drawer-actions"><button class="btn secondary" id="closeMemo">취소</button><button class="btn primary" id="saveMemo">${isNew?'등록':'답변 저장'}</button></div>`);
   document.getElementById('closeMemo').onclick=closeDrawer;
-  document.getElementById('saveMemo').onclick=()=>{m.title=document.getElementById('mTitle').value.trim();m.institution=document.getElementById('mInstitution').value;m.status=document.getElementById('mStatus').value;m.relatedAction=document.getElementById('mAction').value;const text=document.getElementById('mText').value.trim();if(!m.title){alert('메모 제목을 입력하세요.');return;}if(!m.institution){alert('관련 기관을 선택하세요.');return;}if(isNew && !text){alert('메모 내용을 입력하세요.');return;}if(text){m.messages=m.messages||[];m.messages.push({authorInstitution:document.getElementById('mAuthorInstitution').value,date:document.getElementById('mDate').value,text});}if(isNew){state.memos=state.memos||[];state.memos.push(m);}saveState();closeDrawer();render();toast(isNew?'소통 메모를 등록했습니다.':'답변을 저장했습니다.');};
+  document.getElementById('saveMemo').onclick=()=>{m.title=document.getElementById('mTitle').value.trim();m.institution=document.getElementById('mInstitution').value;m.status=document.getElementById('mStatus').value;m.relatedAction=document.getElementById('mAction').value;const text=document.getElementById('mText').value.trim();if(!m.title){alert('메모 제목을 입력하세요.');return;}if(!m.institution){alert('관련 기관을 선택하세요.');return;}if(isNew && !text){alert('메모 내용을 입력하세요.');return;}if(text){m.messages=m.messages||[];m.messages.push({authorInstitution:document.getElementById('mAuthorInstitution').value,date:document.getElementById('mDate').value,text});}if(isNew){state.memos=state.memos||[];state.memos.push(m);}saveState();closeDrawer();render();toast(isNew?'협의사항을 등록했습니다.':'답변을 저장했습니다.');};
 }
+
+function openInstitutionRequest(id,institution){
+  const r=state.requests.find(x=>x.id===id);if(!r||r.to!==institution)return;
+  openDrawer('REQUEST',r.title,`<div class="public-drawer-readonly"><span>요청사항</span><p>${esc(r.content||'')}</p><div><strong>회신기한</strong> ${r.due?fmtDate(r.due):'미정'}</div></div><div class="drawer-section-divider"><span>기관 회신</span></div><div class="form-field"><label>회신내용</label><textarea class="textarea response-textarea" id="publicResponse" placeholder="처리현황, 완료예정일, 확인내용을 입력">${esc(r.response||'')}</textarea></div><div class="form-field"><label>회신일</label><input type="date" class="input" id="publicResponseDate" value="${r.responseDate||today()}"></div>${r.confirmation?`<div class="public-confirm-readonly"><span>정션메드 확인</span><p>${esc(r.confirmation)}</p></div>`:''}<div class="drawer-actions"><button class="btn secondary" id="publicReqCancel">취소</button><button class="btn primary" id="publicReqSave">회신 저장</button></div>`);
+  document.getElementById('publicReqCancel').onclick=closeDrawer;
+  document.getElementById('publicReqSave').onclick=()=>{const text=document.getElementById('publicResponse').value.trim();if(!text){alert('회신내용을 입력해 주십시오.');return;}r.response=text;r.responseDate=document.getElementById('publicResponseDate').value||today();if(['요청','수신 확인','처리 중','기한 초과'].includes(r.status))r.status='답변 완료';saveState();closeDrawer();render();toast('회신을 저장했습니다.');};
+}
+function openInstitutionMemo(id,institution){
+  let m=id?(state.memos||[]).find(x=>x.id===id):null;const isNew=!m;
+  if(m && m.institution!==institution)return;
+  if(!m)m={id:'MEM-'+String((state.memos||[]).length+1).padStart(3,'0'),title:'',institution,relatedAction:'',status:'진행',messages:[]};
+  const messages=(m.messages||[]).map(msg=>`<div class="message-item ${msg.authorInstitution==='정션메드'?'pm-message':''}"><div class="message-meta"><strong>${esc(msg.authorInstitution||'-')}</strong><span>${msg.date?fmtDate(msg.date):'-'}</span></div><p>${esc(msg.text||'')}</p></div>`).join('')||'<div class="portal-empty">아직 등록된 내용이 없습니다.</div>';
+  openDrawer(isNew?'NEW MEMO':m.id,isNew?'협의사항 작성':m.title,`${isNew?`<div class="form-field"><label>제목</label><input class="input" id="publicMemoTitle" placeholder="협의 또는 확인할 사항"></div>`:`<div class="message-thread">${messages}</div>`}<div class="drawer-section-divider"><span>${isNew?'메모 내용':'답변·추가 메모'}</span></div><div class="form-field"><label>내용</label><textarea class="textarea response-textarea" id="publicMemoText" placeholder="확인사항 또는 답변을 입력"></textarea></div><div class="drawer-actions"><button class="btn secondary" id="publicMemoCancel">취소</button><button class="btn primary" id="publicMemoSave">저장</button></div>`);
+  document.getElementById('publicMemoCancel').onclick=closeDrawer;
+  document.getElementById('publicMemoSave').onclick=()=>{const text=document.getElementById('publicMemoText').value.trim();const title=isNew?document.getElementById('publicMemoTitle').value.trim():m.title;if(!title){alert('제목을 입력해 주십시오.');return;}if(!text){alert('내용을 입력해 주십시오.');return;}m.title=title;m.institution=institution;m.messages=m.messages||[];m.messages.push({authorInstitution:institution,date:today(),text});if(isNew){state.memos=state.memos||[];state.memos.push(m);}saveState();closeDrawer();render();toast('협의사항을 저장했습니다.');};
+}
+function showAdminLogin(){
+  const bg=document.getElementById('loginBackdrop');bg.classList.add('show');bg.setAttribute('aria-hidden','false');const input=document.getElementById('adminPassword');input.value='';document.getElementById('loginError').textContent='';setTimeout(()=>input.focus(),50);
+}
+function hideAdminLogin(){const bg=document.getElementById('loginBackdrop');bg.classList.remove('show');bg.setAttribute('aria-hidden','true');}
+function submitAdminLogin(){
+  if(document.getElementById('adminPassword').value===ADMIN_PASSWORD){sessionStorage.setItem('ax-sprint-admin-v11','1');isAdmin=true;currentView='dashboard';hideAdminLogin();render();toast('관리자 화면으로 전환했습니다.');}
+  else{document.getElementById('loginError').textContent='비밀번호가 일치하지 않습니다.';document.getElementById('adminPassword').select();}
+}
+function exitAdmin(){sessionStorage.removeItem('ax-sprint-admin-v11');sessionStorage.removeItem('ax-sprint-admin-v10');sessionStorage.removeItem('ax-sprint-admin-v9');sessionStorage.removeItem('ax-sprint-admin-v8');sessionStorage.removeItem('ax-sprint-admin-v7');isAdmin=false;currentView='portal';render();window.scrollTo({top:0,behavior:'smooth'});}
 
 function exportJson(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='AX_Sprint_Control_Tower_backup.json';a.click();URL.revokeObjectURL(a.href);}
 document.getElementById('importInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=()=>{try{state=JSON.parse(reader.result);saveState();render();toast('백업 데이터를 불러왔습니다.');}catch(err){alert('올바른 JSON 백업 파일이 아닙니다.');}};reader.readAsText(f);e.target.value='';});
-document.getElementById('drawerClose').onclick=closeDrawer;document.getElementById('drawerBackdrop').onclick=closeDrawer;document.getElementById('quickAddBtn').onclick=()=>openAction();document.getElementById('pmUpdateBtn').onclick=()=>{currentView='requests';render();toast('현재는 협업요청 화면으로 이동합니다. 서버형 버전에서 기관 제출 승인함으로 확장합니다.');};
+document.getElementById('drawerClose').onclick=closeDrawer;
+document.getElementById('drawerBackdrop').onclick=closeDrawer;
+document.getElementById('quickAddBtn').onclick=()=>{if(isAdmin)openAction();};
+document.getElementById('pmUpdateBtn').onclick=()=>{if(isAdmin){currentView='requests';render();}};
+document.getElementById('adminAccessBtn').onclick=()=>{if(isAdmin)exitAdmin();else showAdminLogin();};
+document.getElementById('loginClose').onclick=hideAdminLogin;
+document.getElementById('loginBackdrop').onclick=e=>{if(e.target.id==='loginBackdrop')hideAdminLogin();};
+document.getElementById('loginSubmit').onclick=submitAdminLogin;
+document.getElementById('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')submitAdminLogin();});
+if(urlParams.get('admin')==='1'&&!isAdmin)setTimeout(showAdminLogin,100);
 render();
