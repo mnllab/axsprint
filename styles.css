@@ -1476,3 +1476,55 @@ body{background:var(--bg);color:var(--ink)}
   .action-admin-table{min-width:900px}
   .flex-action-buttons .btn{flex:1 1 calc(50% - 6px)}
 }
+
+/* v19 institution communication hub */
+.portal-communication-hub{
+  margin-top:28px;
+  padding:24px 26px;
+  border:1px solid #dfe4e8;
+  border-radius:12px;
+  background:#fff;
+}
+.portal-communication-top{display:flex;align-items:flex-start;justify-content:space-between;gap:22px}
+.portal-communication-top h2{margin:4px 0 0;font-size:25px;line-height:1.35;color:#2e3a45;letter-spacing:-.025em}
+.portal-communication-top p{margin:6px 0 0;font-size:15px;line-height:1.55;color:#737e87}
+.portal-communication-actions{display:flex;gap:8px;flex:0 0 auto}
+.communication-counts{display:flex;align-items:center;gap:22px;margin-top:20px;padding:14px 0;border-top:1px solid #edf0f2;border-bottom:1px solid #edf0f2}
+.communication-counts button{appearance:none;border:0;background:transparent;padding:0;display:flex;align-items:baseline;gap:7px;color:#56636e;cursor:pointer}
+.communication-counts button:hover span{text-decoration:underline;text-underline-offset:4px}
+.communication-counts span{font-size:14px;font-weight:700}
+.communication-counts strong{font-size:21px;color:#34434f}
+.communication-recent{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+.communication-recent button{appearance:none;border:1px solid #e5e9ec;background:#fafbfb;border-radius:9px;padding:13px 14px;text-align:left;cursor:pointer;min-width:0}
+.communication-recent button:hover{background:#f5f7f8;border-color:#d5dce1}
+.communication-type{display:block;font-size:11px;font-weight:800;color:#7b8790;margin-bottom:5px}
+.communication-recent strong{display:block;font-size:15px;line-height:1.4;color:#374550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.communication-recent em{display:block;margin-top:5px;font-style:normal;font-size:12px;color:#88929a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.communication-empty{margin-top:14px}
+.portal-communication-detail{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.communication-subsection{min-width:0}
+.communication-subhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:12px}
+.communication-subhead h3{margin:0;font-size:20px;color:#33414d}
+.communication-subhead p{margin:4px 0 0;font-size:13px;color:#7d8790}
+.communication-subhead>strong{font-size:14px;color:#6e7880}
+.sent-request-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #edf0f2;color:#7d8790;font-size:12px}
+.portal-response.answered{background:#f8faf9}
+.public-drawer-intro{margin-bottom:18px;padding:14px 15px;background:#f7f8f9;border:1px solid #e4e8eb;border-radius:8px}
+.public-drawer-intro strong{display:block;font-size:16px;color:#33414d}
+.public-drawer-intro p{margin:5px 0 0;font-size:14px;line-height:1.55;color:#6f7a83}
+
+@media (max-width: 980px){
+  .portal-communication-detail{grid-template-columns:1fr}
+  .communication-recent{grid-template-columns:1fr 1fr}
+}
+@media (max-width: 720px){
+  .portal-communication-hub{margin-top:22px;padding:19px 17px;border-radius:10px}
+  .portal-communication-top{flex-direction:column;gap:15px}
+  .portal-communication-top h2{font-size:22px}
+  .portal-communication-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}
+  .portal-communication-actions .btn{width:100%;min-height:44px}
+  .communication-counts{gap:0;justify-content:space-between}
+  .communication-counts button{flex:1;justify-content:center;padding:0 4px}
+  .communication-counts span{font-size:12px}.communication-counts strong{font-size:18px}
+  .communication-recent{grid-template-columns:1fr}
+}
