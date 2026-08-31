@@ -1,5 +1,5 @@
-const STORAGE_KEY = 'ax-sprint-control-tower-v20';
-const LEGACY_STORAGE_KEYS = ['ax-sprint-control-tower-v19','ax-sprint-control-tower-v18','ax-sprint-control-tower-v11','ax-sprint-control-tower-v10','ax-sprint-control-tower-v9','ax-sprint-control-tower-v8','ax-sprint-control-tower-v7','ax-sprint-control-tower-v6','ax-sprint-control-tower-v5','ax-sprint-control-tower-v4'];
+const STORAGE_KEY = 'ax-sprint-control-tower-v19';
+const LEGACY_STORAGE_KEYS = ['ax-sprint-control-tower-v18','ax-sprint-control-tower-v11','ax-sprint-control-tower-v10','ax-sprint-control-tower-v9','ax-sprint-control-tower-v8','ax-sprint-control-tower-v7','ax-sprint-control-tower-v6','ax-sprint-control-tower-v5','ax-sprint-control-tower-v4'];
 const STATUS_OPTIONS = ['예정','진행 중','협업기관 회신 대기','PM 검토 대기','PM 결정 필요','지연','완료 요청','완료 승인','보류'];
 const KPI_STATUS_OPTIONS = ['미측정','준비 중','진행 중','주의','위험','달성','미달'];
 const REQUEST_STATUS = ['요청','수신 확인','처리 중','답변 완료','요청자 확인 대기','종결','기한 초과','PM 조정 필요'];
@@ -14,8 +14,8 @@ const NAV = [
 ];
 let state = loadState();
 const urlParams = new URLSearchParams(location.search);
-let adminPinSession = sessionStorage.getItem('ax-sprint-admin-pin-v20') || '';
-let isAdmin = sessionStorage.getItem('ax-sprint-admin-v20') === '1' && !!adminPinSession;
+let adminPinSession = sessionStorage.getItem('ax-sprint-admin-pin-v19') || '';
+let isAdmin = sessionStorage.getItem('ax-sprint-admin-v19') === '1' && !!adminPinSession;
 let supabaseClient = null;
 let supabaseReady = false;
 let remoteInitialized = false;
@@ -26,7 +26,6 @@ let remoteSaveQueued = false;
 let portalInstitution = PORTAL_CODE[urlParams.get('inst')] || PORTAL_ORDER[0];
 let portalDetailTab = 'all';
 let portalListFilter = 'all';
-let portalRequestView = 'all';
 let currentView = isAdmin ? 'dashboard' : 'portal';
 let viewFilter = {};
 
@@ -51,72 +50,9 @@ function normalizeFlexibleActions(data){
     if(!Array.isArray(a.stages)) a.stages=[];
   });
   data.project=data.project||{};
-  data.project.version='MVP v20';
+  data.project.version='MVP v19';
   return data;
 }
-function requestRecipients(r){
-  const raw=Array.isArray(r?.toInstitutions)?r.toInstitutions:(Array.isArray(r?.to)?r.to:(r?.to?[r.to]:[]));
-  return [...new Set(raw.filter(Boolean).map(renameLegacyInstitution))];
-}
-function normalizeRequest(r){
-  if(!r||typeof r!=='object') return r;
-  const recipients=requestRecipients(r);
-  r.toInstitutions=recipients;
-  r.to=recipients[0]||r.to||'';
-  if(!r.responses||typeof r.responses!=='object'||Array.isArray(r.responses)) r.responses={};
-  if(r.response && r.to && !r.responses[r.to]){
-    r.responses[r.to]={text:r.response,date:r.responseDate||'',confirmation:r.confirmation||''};
-  }
-  recipients.forEach(name=>{
-    const old=r.responses[name];
-    if(typeof old==='string') r.responses[name]={text:old,date:'',confirmation:''};
-    else if(!old||typeof old!=='object') r.responses[name]={text:'',date:'',confirmation:''};
-    else r.responses[name]={text:old.text||old.response||'',date:old.date||old.responseDate||'',confirmation:old.confirmation||''};
-  });
-  r.requestedAt=r.requestedAt||'';
-  r.confirmation=r.confirmation||'';
-  syncRequestLegacyFields(r);
-  return r;
-}
-function requestIncludesRecipient(r,name){return requestRecipients(r).includes(name);}
-function requestResponse(r,name){
-  normalizeRequest(r);
-  return r.responses?.[name]||{text:'',date:'',confirmation:''};
-}
-function requestReplyCount(r){return requestRecipients(r).filter(name=>(requestResponse(r,name).text||'').trim()).length;}
-function requestAllReplied(r){const recipients=requestRecipients(r);return !!recipients.length && requestReplyCount(r)===recipients.length;}
-function requestNeedsReply(r,name){return requestIncludesRecipient(r,name)&&requestLiveStatus(r)!=='종결'&&!(requestResponse(r,name).text||'').trim();}
-function syncRequestLegacyFields(r){
-  const recipients=requestRecipients(r);
-  r.toInstitutions=recipients;
-  r.to=recipients[0]||'';
-  if(recipients.length===1){
-    const resp=r.responses?.[recipients[0]]||{};
-    r.response=resp.text||'';r.responseDate=resp.date||'';r.confirmation=resp.confirmation||'';
-  }else{r.response='';r.responseDate='';r.confirmation='';}
-  return r;
-}
-function requestRecipientLabel(r){const names=requestRecipients(r);return names.length===PORTAL_ORDER.length-1?'전체 요청':names.join(', ');}
-function requestLiveStatus(r){
-  if(['종결','PM 조정 필요'].includes(r.status)) return r.status;
-  if(requestAllReplied(r)) return '답변 완료';
-  if(requestReplyCount(r)>0) return '처리 중';
-  if(r.due && r.due<today()) return '기한 초과';
-  return r.status||'요청';
-}
-function recipientPickerHTML(id,names,selected=[],allowAll=true){
-  const values=[...new Set(selected||[])];
-  const allChecked=names.length>0 && names.every(n=>values.includes(n));
-  return `<div class="recipient-picker" id="${id}">${allowAll?`<label class="recipient-choice recipient-choice-all"><input type="checkbox" data-recipient-all="${id}" ${allChecked?'checked':''}><span><strong>전체 요청</strong><small>선택 가능한 모든 기관</small></span></label>`:''}<div class="recipient-choice-grid">${names.map(name=>`<label class="recipient-choice"><input type="checkbox" name="${id}-recipient" value="${esc(name)}" ${values.includes(name)?'checked':''}><span><strong>${esc(name)}</strong></span></label>`).join('')}</div></div>`;
-}
-function selectedRecipients(id){return [...document.querySelectorAll(`input[name="${id}-recipient"]:checked`)].map(x=>x.value);}
-function bindRecipientPicker(id){
-  const all=document.querySelector(`[data-recipient-all="${id}"]`);const boxes=[...document.querySelectorAll(`input[name="${id}-recipient"]`)];
-  if(!all)return;
-  all.onchange=()=>boxes.forEach(b=>{if(!b.disabled)b.checked=all.checked;});
-  boxes.forEach(b=>b.onchange=()=>{const enabled=boxes.filter(x=>!x.disabled);all.checked=enabled.length>0&&enabled.every(x=>x.checked);all.indeterminate=enabled.some(x=>x.checked)&&!all.checked;});
-}
-
 function loadState(){
   try {
     const current=localStorage.getItem(STORAGE_KEY);
@@ -137,7 +73,7 @@ function loadState(){
     }
     data=normalizeFlexibleActions(renameLegacyInstitution(data));
     data.requests=data.requests||[]; data.memos=data.memos||[];
-    data.requests.forEach(normalizeRequest);
+    data.requests.forEach(r=>{r.response=r.response||'';r.responseDate=r.responseDate||'';r.requestedAt=r.requestedAt||'';r.confirmation=r.confirmation||'';});
     return data;
   } catch(e){ const data=normalizeFlexibleActions(clone(window.INITIAL_DATA)); data.memos=data.memos||[]; return data; }
 }
@@ -184,7 +120,7 @@ async function refreshFromRemote(silent=false){
   supabaseReady=true;
   if(!data||!data.state){remoteInitialized=false;setSyncStatus('초기 데이터 필요','warn');return false;}
   const incoming=normalizeFlexibleActions(renameLegacyInstitution(data.state));
-  incoming.requests=incoming.requests||[]; incoming.requests.forEach(normalizeRequest); incoming.memos=incoming.memos||[];
+  incoming.requests=incoming.requests||[]; incoming.memos=incoming.memos||[];
   state=incoming; normalizeInstitutionOrder(); persistLocal(); remoteInitialized=true; remoteUpdatedAt=data.updated_at||'';
   setSyncStatus('공유DB 연결됨','ok');
   if(!silent)render(); else if(!isAdmin)render();
@@ -201,17 +137,16 @@ async function initSupabaseSync(){
 }
 async function portalReplyRequestRemote(r,institution){
   if(!supabaseClient)return;
-  const resp=requestResponse(r,institution);
-  const {error}=await supabaseClient.rpc('ax_portal_reply_request_v20',{p_request_id:r.id,p_institution:institution,p_response:resp.text,p_response_date:resp.date||today()});
+  const {error}=await supabaseClient.rpc('ax_portal_reply_request',{p_request_id:r.id,p_institution:institution,p_response:r.response,p_response_date:r.responseDate||today()});
   if(error){console.error(error);setSyncStatus('회신 저장 실패','error');throw error;}
   await refreshFromRemote(true); setSyncStatus('회신 저장됨','ok');
 }
 async function portalCreateRequestRemote(r,institution){
   if(!supabaseClient)return;
-  const {error}=await supabaseClient.rpc('ax_portal_create_request_v20',{
+  const {error}=await supabaseClient.rpc('ax_portal_create_request',{
     p_request_id:r.id,
     p_from_institution:institution,
-    p_to_institutions:requestRecipients(r),
+    p_to_institution:r.to,
     p_title:r.title,
     p_content:r.content,
     p_requested_at:r.requestedAt||today(),
@@ -310,7 +245,7 @@ function institutionStats(name){
   const responsibility=state.actions.filter(a=>a.owner===name).length;
   const collab=state.actions.filter(a=>(a.collaborators||[]).includes(name)).length;
   const late=state.actions.filter(a=>a.owner===name && a.status!=='완료 승인' && a.end && a.end<today()).length;
-  const req=state.requests.filter(r=>requestIncludesRecipient(r,name) && !['종결'].includes(requestLiveStatus(r)) && !(requestResponse(r,name).text||'').trim()).length;
+  const req=state.requests.filter(r=>r.to===name && !['종결'].includes(r.status)).length;
   return {responsibility,collab,late,req};
 }
 function urgentActions(){
@@ -335,7 +270,7 @@ function workboardData(name){
   const dueSoon=enriched.filter(a=>a.end && a.diff>=0 && a.diff<=7).sort((a,b)=>a.diff-b.diff);
   const active=enriched.filter(a=>a.start && a.end && a.start<=today() && a.end>=today() && a.diff>7).sort((a,b)=>a.end.localeCompare(b.end));
   const upcoming=enriched.filter(a=>a.start && a.start>today()).sort((a,b)=>a.start.localeCompare(b.start));
-  const requests=state.requests.filter(r=>requestIncludesRecipient(r,name) && requestLiveStatus(r)!=='종결' && !(requestResponse(r,name).text||'').trim()).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+  const requests=state.requests.filter(r=>r.to===name && r.status!=='종결').sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
   const done=relevant.filter(a=>a.status==='완료 승인').sort((a,b)=>(b.end||'').localeCompare(a.end||''));
   return {relevant,open,overdue,dueSoon,active,upcoming,requests,done};
 }
@@ -363,12 +298,12 @@ function workList(items,name,emptyText){
   if(!items.length) return `<div class="empty compact">${emptyText}</div>`;
   return `<div class="work-card-grid">${items.map(a=>workActionCard(a,name)).join('')}</div>`;
 }
-function requestMiniList(items,institution=''){
+function requestMiniList(items){
   if(!items.length) return '<div class="empty compact">현재 회신할 요청사항이 없습니다.</div>';
-  return `<div class="request-feedback-list">${items.map(r=>{const resp=requestResponse(r,institution||requestRecipients(r)[0]||'');const replied=(resp.text||'').trim();return `<div class="request-feedback-card" data-request="${r.id}">
-    <div class="request-feedback-head"><div><span class="request-label">${esc(r.from||'요청기관')} 요청</span><strong>${esc(r.title)}</strong></div><div class="request-feedback-meta"><span>${r.due?'회신 '+fmtDate(r.due)+'까지':'회신기한 미정'}</span>${statusTag(requestLiveStatus(r))}</div></div>
+  return `<div class="request-feedback-list">${items.map(r=>{const replied=(r.response||'').trim();return `<div class="request-feedback-card" data-request="${r.id}">
+    <div class="request-feedback-head"><div><span class="request-label">${esc(r.from||'요청기관')} 요청</span><strong>${esc(r.title)}</strong></div><div class="request-feedback-meta"><span>${r.due?'회신 '+fmtDate(r.due)+'까지':'회신기한 미정'}</span>${statusTag(r.status)}</div></div>
     <div class="request-body"><span>요청사항</span><p>${esc(r.content||'요청내용 미입력')}</p></div>
-    <div class="feedback-body ${replied?'answered':''}"><span>기관 회신</span><p>${replied?esc(resp.text):'회신이 등록되지 않았습니다.'}</p>${resp.date?`<small>${fmtDate(resp.date)} 회신</small>`:''}</div>
+    <div class="feedback-body ${replied?'answered':''}"><span>기관 회신</span><p>${replied?esc(r.response):'회신이 등록되지 않았습니다.'}</p>${r.responseDate?`<small>${fmtDate(r.responseDate)} 회신</small>`:''}</div>
     <div class="request-feedback-foot"><span>${r.relatedAction?`관련과제 ${esc(r.relatedAction)}`:'관련과제 미연결'}</span><button class="mini-btn" type="button">${replied?'회신 확인·수정':'회신 작성'}</button></div>
   </div>`}).join('')}</div>`;
 }
@@ -388,18 +323,16 @@ function portalActionData(name){
     .sort((a,b)=>{const ad=a.diff??999,bd=b.diff??999;if(ad!==bd)return ad-bd;return (a.owner===name?-1:1)-(b.owner===name?-1:1);});
   const current=items.filter(a=>!a.start || a.start<=today()).sort((a,b)=>(a.diff??999)-(b.diff??999));
   const upcoming=items.filter(a=>a.start && a.start>today()).sort((a,b)=>a.start.localeCompare(b.start));
-  const receivedAll=state.requests.filter(r=>requestIncludesRecipient(r,name)).sort((a,b)=>(b.requestedAt||'').localeCompare(a.requestedAt||''));
-  const requests=receivedAll.filter(r=>requestLiveStatus(r)!=='종결').sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+  const requests=state.requests.filter(r=>r.to===name && r.status!=='종결').sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
   const sentRequests=state.requests.filter(r=>r.from===name).sort((a,b)=>(b.requestedAt||'').localeCompare(a.requestedAt||''));
   const memos=(state.memos||[]).filter(m=>m.institution===name).sort((a,b)=>memoLastDate(b).localeCompare(memoLastDate(a)));
   const done=allRelevant.filter(a=>a.status==='완료 승인').sort((a,b)=>(b.end||'').localeCompare(a.end||''));
-  return {items,priority,current,upcoming,requests,receivedAll,sentRequests,memos,done,overdue:items.filter(a=>a.end&&a.diff<0),dueSoon:items.filter(a=>a.end&&a.diff>=0&&a.diff<=7)};
+  return {items,priority,current,upcoming,requests,sentRequests,memos,done,overdue:items.filter(a=>a.end&&a.diff<0),dueSoon:items.filter(a=>a.end&&a.diff>=0&&a.diff<=7)};
 }
 function portalStatusMessage(w){
-  const pending=w.requests.filter(r=>requestNeedsReply(r,portalInstitution)).length;
   if(w.overdue.length) return `기한이 지난 항목 ${w.overdue.length}건이 있습니다.`;
   if(w.dueSoon.length) return `7일 이내 마감 항목 ${w.dueSoon.length}건이 있습니다.`;
-  if(pending) return `회신이 필요한 요청사항 ${pending}건이 있습니다.`;
+  if(w.requests.length) return `회신이 필요한 요청사항 ${w.requests.length}건이 있습니다.`;
   return '현재 별도 확인이 필요한 긴급사항은 없습니다.';
 }
 function portalStageLabels(a){
@@ -451,39 +384,33 @@ function portalActionCard(a){
 function portalTaskList(items,empty){
   return items.length?`<div class="portal-task-list">${items.map(portalActionCard).join('')}</div>`:`<div class="portal-empty">${empty}</div>`;
 }
-function portalRequestList(items,institution=portalInstitution){
+function portalRequestList(items){
   if(!items.length)return '<div class="portal-empty">현재 회신할 요청사항이 없습니다.</div>';
-  return `<div class="portal-request-list">${items.map(r=>{const resp=requestResponse(r,institution);return `<article class="portal-request">
+  return `<div class="portal-request-list">${items.map(r=>`<article class="portal-request">
     <div class="portal-request-top"><div><span>${esc(r.from||'요청기관')} 요청</span><h3>${esc(r.title)}</h3></div><strong>${r.due?`${fmtDate(r.due)}까지`:'기한 미정'}</strong></div>
     <p class="portal-request-content">${esc(r.content||'요청내용 미입력')}</p>
-    <div class="portal-response ${resp.text?'answered':''}"><span>${esc(institution)} 회신</span><p>${resp.text?esc(resp.text):'아직 회신하지 않았습니다.'}</p>${resp.date?`<small>${fmtDate(resp.date)} 회신</small>`:''}</div>
-    ${resp.confirmation?`<div class="portal-confirmation"><span>관리자 확인</span><p>${esc(resp.confirmation)}</p></div>`:''}
-    <button type="button" class="btn secondary portal-reply-btn" data-public-request="${r.id}">${resp.text?'회신 수정':'회신 작성'}</button>
-  </article>`}).join('')}</div>`;
+    <div class="portal-response"><span>기관 회신</span><p>${r.response?esc(r.response):'아직 회신하지 않았습니다.'}</p></div>
+    ${r.confirmation?`<div class="portal-confirmation"><span>정션메드 확인</span><p>${esc(r.confirmation)}</p></div>`:''}
+    <button type="button" class="btn secondary portal-reply-btn" data-public-request="${r.id}">${r.response?'회신 수정':'회신 작성'}</button>
+  </article>`).join('')}</div>`;
 }
 function portalSentRequestList(items){
   if(!items.length)return '<div class="portal-empty">보낸 요청이 없습니다.</div>';
-  return `<div class="portal-request-list sent">${items.map(r=>{const recipients=requestRecipients(r);return `<article class="portal-request sent-request">
-    <div class="portal-request-top"><div><span>${esc(requestRecipientLabel(r))}</span><h3>${esc(r.title)}</h3></div><strong>${r.due?`회신 ${fmtDate(r.due)}까지`:'회신기한 미정'}</strong></div>
+  return `<div class="portal-request-list sent">${items.map(r=>`<article class="portal-request sent-request">
+    <div class="portal-request-top"><div><span>${esc(r.to||'수신기관')}에 요청</span><h3>${esc(r.title)}</h3></div><strong>${r.due?`회신 ${fmtDate(r.due)}까지`:'회신기한 미정'}</strong></div>
     <p class="portal-request-content">${esc(r.content||'요청내용 미입력')}</p>
-    <div class="multi-response-summary">${recipients.map(name=>{const resp=requestResponse(r,name);return `<div class="multi-response-line ${resp.text?'answered':''}"><strong>${esc(name)}</strong><span>${resp.text?esc(resp.text):'회신 대기'}</span>${resp.date?`<small>${fmtDate(resp.date)}</small>`:''}</div>`}).join('')}</div>
-    <div class="sent-request-foot">${statusTag(requestLiveStatus(r))}<span>${requestReplyCount(r)}/${recipients.length}개 기관 회신 · ${r.requestedAt?fmtDate(r.requestedAt)+' 요청':''}</span></div>
-  </article>`}).join('')}</div>`;
+    <div class="portal-response ${r.response?'answered':''}"><span>${esc(r.to||'수신기관')} 회신</span><p>${r.response?esc(r.response):'아직 회신이 등록되지 않았습니다.'}</p>${r.responseDate?`<small>${fmtDate(r.responseDate)} 회신</small>`:''}</div>
+    <div class="sent-request-foot">${statusTag(r.status)}<span>${r.requestedAt?fmtDate(r.requestedAt)+' 요청':''}</span></div>
+  </article>`).join('')}</div>`;
 }
-function portalCommunicationDetail(w,mode='all'){
-  const sections=[];
-  if(mode==='all'||mode==='received') sections.push(`<div class="communication-subsection"><div class="communication-subhead"><div><h3>받은 요청</h3><p>회신이 필요한 요청사항입니다.</p></div><strong>${(w.receivedAll||w.requests).length}건</strong></div>${portalRequestList(w.receivedAll||w.requests)}</div>`);
-  if(mode==='all'||mode==='sent') sections.push(`<div class="communication-subsection"><div class="communication-subhead"><div><h3>보낸 요청</h3><p>기관에서 전달한 요청과 회신 결과입니다.</p></div><strong>${w.sentRequests.length}건</strong></div>${portalSentRequestList(w.sentRequests)}</div>`);
-  return `<div class="portal-communication-detail">${sections.join('')}</div>`;
-}
-function portalRequestSection(w,name){
-  return `<section class="portal-section portal-request-main-section"><div class="portal-section-head portal-request-main-head"><div><h2>요청·회신</h2><p>기관 간 요청과 회신 현황을 확인하고 필요한 요청을 등록합니다.</p></div><div class="portal-request-head-actions"><label class="portal-request-view"><span>보기</span><select id="portalRequestView"><option value="all" ${portalRequestView==='all'?'selected':''}>전체 요청</option><option value="received" ${portalRequestView==='received'?'selected':''}>받은 요청</option><option value="sent" ${portalRequestView==='sent'?'selected':''}>보낸 요청</option></select></label><button type="button" class="btn primary" id="publicNewRequest">요청 보내기</button></div></div>${portalCommunicationDetail(w,portalRequestView)}</section>`;
+function portalCommunicationDetail(w){
+  return `<div class="portal-communication-detail"><div class="communication-subsection"><div class="communication-subhead"><div><h3>받은 요청</h3><p>회신이 필요한 요청사항입니다.</p></div><strong>${w.requests.length}건</strong></div>${portalRequestList(w.requests)}</div><div class="communication-subsection"><div class="communication-subhead"><div><h3>보낸 요청</h3><p>기관에서 전달한 요청과 회신 결과입니다.</p></div><strong>${w.sentRequests.length}건</strong></div>${portalSentRequestList(w.sentRequests)}</div></div>`;
 }
 function portalCommunicationPanel(w,name){
   const latestReceived=w.requests.slice(0,1), latestSent=w.sentRequests.slice(0,1), latestMemo=w.memos.slice(0,1);
   const rows=[
     ...latestReceived.map(r=>({type:'받은 요청',title:r.title,meta:`${r.from||'요청기관'} · ${r.due?fmtDate(r.due)+'까지':'기한 미정'}`,action:'requests'})),
-    ...latestSent.map(r=>({type:'보낸 요청',title:r.title,meta:`${requestRecipientLabel(r)} · ${requestReplyCount(r)}/${requestRecipients(r).length} 회신`,action:'requests'})),
+    ...latestSent.map(r=>({type:'보낸 요청',title:r.title,meta:`${r.to||'수신기관'} · ${r.response?'회신 완료':'회신 대기'}`,action:'requests'})),
     ...latestMemo.map(m=>({type:'협의',title:m.title,meta:`대화 ${(m.messages||[]).length}건`,action:'memos'}))
   ].slice(0,3);
   return `<section class="portal-communication-hub"><div class="portal-communication-top"><div><span class="portal-kicker">협업 소통</span><h2>요청·회신 및 협의사항</h2><p>필요한 요청을 전달하고 회신과 협의 내용을 한 곳에서 확인합니다.</p></div><div class="portal-communication-actions"><button type="button" class="btn primary" id="publicNewRequest">요청 보내기</button><button type="button" class="btn secondary" id="publicAddMemoTop">협의사항 작성</button></div></div><div class="communication-counts"><button type="button" data-portal-jump="requests"><span>받은 요청</span><strong>${w.requests.length}</strong></button><button type="button" data-portal-jump="requests"><span>보낸 요청</span><strong>${w.sentRequests.length}</strong></button><button type="button" data-portal-jump="memos"><span>협의사항</span><strong>${w.memos.length}</strong></button></div>${rows.length?`<div class="communication-recent">${rows.map(row=>`<button type="button" data-portal-jump="${row.action}"><span class="communication-type">${esc(row.type)}</span><strong>${esc(row.title)}</strong><em>${esc(row.meta)}</em></button>`).join('')}</div>`:'<div class="portal-empty communication-empty">등록된 소통 내역이 없습니다. 요청 또는 협의사항을 직접 등록할 수 있습니다.</div>'}</section>`;
@@ -539,13 +466,14 @@ function portalCompactAllList(w){
   }).join('')}</div>`;
 }
 function portalDetailTabsHTML(){
-  const tabs=[['all','전체 항목'],['overdue','기한 경과'],['dueSoon','마감 임박'],['upcoming','예정 일정'],['memos','협의사항'],['done','완료']];
+  const tabs=[['all','전체 항목'],['overdue','기한 경과'],['dueSoon','마감 임박'],['upcoming','예정 일정'],['requests','요청·회신'],['memos','협의사항'],['done','완료']];
   return `<div class="portal-detail-tabs" role="tablist">${tabs.map(([id,label])=>`<button type="button" class="portal-detail-tab ${portalDetailTab===id?'active':''}" data-portal-detail="${id}" role="tab" aria-selected="${portalDetailTab===id?'true':'false'}">${label}</button>`).join('')}</div>`;
 }
 function portalDetailContent(w){
   if(portalDetailTab==='overdue') return portalTaskList(w.overdue,'기한이 경과한 항목이 없습니다.');
   if(portalDetailTab==='dueSoon') return portalTaskList(w.dueSoon,'7일 이내 마감되는 항목이 없습니다.');
   if(portalDetailTab==='upcoming') return portalTaskList(w.upcoming,'예정된 항목이 없습니다.');
+  if(portalDetailTab==='requests') return `<div class="portal-detail-action"><button type="button" class="btn primary" id="publicNewRequestDetail">요청 보내기</button></div>${portalCommunicationDetail(w)}`;
   if(portalDetailTab==='memos') return `<div class="portal-detail-action"><button type="button" class="btn secondary" id="publicAddMemo">협의사항 작성</button></div>${portalMemoList(w.memos)}`;
   if(portalDetailTab==='done') return portalTaskList(w.done,'완료 승인된 항목이 없습니다.');
   return portalTaskList(w.items,'등록된 항목이 없습니다.');
@@ -583,13 +511,13 @@ function institutionPortalHTML(name){
       <div class="situation-counts" aria-label="빠른 현황 보기">
         <button type="button" class="situation-count-btn ${w.overdue.length?'has-alert':''}" data-portal-jump="overdue"><span>기한 경과</span><strong>${w.overdue.length}</strong><em>건</em></button>
         <button type="button" class="situation-count-btn" data-portal-jump="dueSoon"><span>마감 임박</span><strong>${w.dueSoon.length}</strong><em>건</em></button>
-        <button type="button" class="situation-count-btn" data-portal-jump="requests"><span>회신 필요</span><strong>${w.requests.filter(r=>requestNeedsReply(r,name)).length}</strong><em>건</em></button>
+        <button type="button" class="situation-count-btn" data-portal-jump="requests"><span>회신 필요</span><strong>${w.requests.length}</strong><em>건</em></button>
       </div>
     </section>
 
-    <section class="portal-section portal-focus-section"><div class="portal-section-head"><div><h2>현재 주요 진행사항</h2><p>현재 진행 중이거나 기한이 가까운 항목을 표시합니다.</p></div><strong>${w.priority.length}건</strong></div>${portalTaskList(focus,'현재 표시할 주요 진행사항이 없습니다.')}${hidden?`<div class="portal-more-note">추가 ${hidden}건은 아래 전체 항목에서 확인할 수 있습니다.</div>`:''}</section>
+    ${portalCommunicationPanel(w,name)}
 
-    ${portalRequestSection(w,name)}
+    <section class="portal-section portal-focus-section"><div class="portal-section-head"><div><h2>현재 주요 진행사항</h2><p>현재 진행 중이거나 기한이 가까운 항목을 표시합니다.</p></div><strong>${w.priority.length}건</strong></div>${portalTaskList(focus,'현재 표시할 주요 진행사항이 없습니다.')}${hidden?`<div class="portal-more-note">추가 ${hidden}건은 아래 전체 항목에서 확인할 수 있습니다.</div>`:''}</section>
 
     <section class="portal-section portal-list-section"><div class="portal-section-head portal-list-head"><div><h2>전체 항목</h2><p>분류를 선택하면 해당 항목만 목록으로 표시합니다.</p></div>${portalListFilterControl(w)}</div>${portalCompactAllList(w)}</section>
 
@@ -611,7 +539,7 @@ function workboardHTML(){
     <div class="workboard-hero"><div><div class="eyebrow">기관별 실행현황</div><h2>${esc(inst.name)}</h2><p>현재 주요 진행사항, 마감일, 완료기준, 요청사항 및 회신내용을 확인합니다.</p></div><div class="workboard-asof"><span>기준일</span><strong>${fmtDate(today())}</strong></div></div>
     <div class="work-summary-grid">${metric('지연',w.overdue.length+'건','기한이 지난 항목',w.overdue.length?'bad':'good')}${metric('7일 이내 마감',w.dueSoon.length+'건','마감 임박 항목')}${metric('현재 진행',responsibilityOpen+'건','책임기관으로 수행 중')}${metric('회신 필요',w.requests.length+'건','해당 기관 답변 필요')}${metric('역할 확인',relatedUnowned+'건','책임기관 미확정',relatedUnowned?'bad':'good')}</div>
     <div class="section-title"><div><h2>현재 주요 진행사항</h2><p>기한 경과, 7일 이내 마감, 진행 중 항목 순으로 표시</p></div><span class="tag blue">${now.length}건</span></div>${workList(now,inst.name,'현재 진행 중이거나 7일 이내 마감되는 항목이 없습니다.')}
-    <div class="communication-grid"><div><div class="section-title"><div><h2>요청사항 및 기관 회신</h2></div><button class="btn ghost compact-btn" id="newRequestForInst">+ 요청 등록</button></div>${requestMiniList(w.requests,inst.name)}</div><div><div class="section-title"><div><h2>협의사항</h2></div><button class="btn ghost compact-btn" id="newMemoForInst">+ 메모 등록</button></div><div class="panel">${memoPreviewList(institutionMemoThreads(inst.name),inst.name)}</div></div></div>
+    <div class="communication-grid"><div><div class="section-title"><div><h2>요청사항 및 기관 회신</h2></div><button class="btn ghost compact-btn" id="newRequestForInst">+ 요청 등록</button></div>${requestMiniList(w.requests)}</div><div><div class="section-title"><div><h2>협의사항</h2></div><button class="btn ghost compact-btn" id="newMemoForInst">+ 메모 등록</button></div><div class="panel">${memoPreviewList(institutionMemoThreads(inst.name),inst.name)}</div></div></div>
     <div class="section-title"><div><h2>향후 30일 예정 일정</h2></div></div>${workList(next30,inst.name,'30일 이내 새로 시작할 일정이 없습니다.')}
   </div>`;
 }
@@ -677,42 +605,6 @@ function actionsHTML(){
 }
 function actionTableHTML(items){if(!items.length)return '<div class="empty panel">조건에 맞는 진행항목이 없습니다.</div>';const rows=actionSort(items);return `<div class="table-wrap"><table class="data-table action-admin-table"><thead><tr><th>진행항목</th><th>책임기관</th><th>기준일정</th><th>현재일정</th><th>상태</th><th>변경</th></tr></thead><tbody>${rows.map(a=>{const changed=(a.baselineStart||'')!==(a.start||'')||(a.baselineEnd||'')!==(a.end||'');return `<tr data-action="${a.id}" class="${a.active===false?'inactive-row':''}"><td><div class="cell-title ${a._depth?'sub-action-title':''}" style="--depth:${a._depth||0}">${a._depth?'↳ ':''}${esc(a.name)} ${a._depth?'<span class="mini-label">세부</span>':''}</div><div class="cell-sub">${esc(a.relatedKpi||'성과목표 연결 필요')}</div></td><td>${esc(ownerDisplay(a.owner))}</td><td><span class="baseline-date">${fmtDate(a.baselineStart)} ~ ${fmtDate(a.baselineEnd)}</span></td><td>${fmtDate(a.start)} ~ ${fmtDate(a.end)}${a.end&&a.end<today()&&a.status!=='완료 승인'?'<div class="cell-sub date-bad">기한 경과</div>':''}</td><td>${statusTag(a.status)}${a.active===false?'<span class="tag">비활성</span>':''}</td><td>${changed?'<span class="tag warn">일정 변경</span>':'<span class="muted">기준 유지</span>'}${a.changeReason?`<div class="cell-sub">${esc(a.changeReason)}</div>`:''}</td></tr>`}).join('')}</tbody></table></div>`;}
 
-function requestAdminItems(){
-  const q=(viewFilter.requestSearch||'').trim().toLowerCase();
-  const inst=viewFilter.requestInstitution||'전체 기관';
-  const scope=viewFilter.requestScope||'전체 요청';
-  return (state.requests||[]).filter(r=>{
-    normalizeRequest(r);
-    const recipients=requestRecipients(r);
-    const responseText=recipients.map(name=>requestResponse(r,name).text||'').join(' ');
-    const text=`${r.title||''} ${r.content||''} ${r.from||''} ${recipients.join(' ')} ${responseText}`.toLowerCase();
-    const matchQ=!q||text.includes(q);
-    const matchInst=inst==='전체 기관'||r.from===inst||requestIncludesRecipient(r,inst);
-    const live=requestLiveStatus(r);
-    let matchScope=true;
-    if(scope==='회신 대기') matchScope=live!=='종결'&&!requestAllReplied(r);
-    if(scope==='답변 완료') matchScope=requestAllReplied(r)&&live!=='종결';
-    if(scope==='종결') matchScope=live==='종결';
-    return matchQ&&matchInst&&matchScope;
-  }).sort((a,b)=>(b.requestedAt||'').localeCompare(a.requestedAt||'') || (a.due||'9999').localeCompare(b.due||'9999'));
-}
-function requestAdminTableHTML(items){
-  if(!items.length)return '<div class="empty panel">조건에 맞는 요청이 없습니다.</div>';
-  return `<div class="table-wrap"><table class="data-table request-admin-table"><thead><tr><th>요청</th><th>요청기관</th><th>수신기관</th><th>회신기한</th><th>상태</th><th>회신</th></tr></thead><tbody>${items.map(r=>{const recipients=requestRecipients(r);return `<tr data-request="${r.id}"><td><div class="cell-title">${esc(r.title)}</div><div class="cell-sub">${esc(r.content||'').slice(0,80)}${(r.content||'').length>80?'…':''}</div></td><td>${esc(r.from||'-')}</td><td><strong>${esc(requestRecipientLabel(r)||'-')}</strong>${recipients.length>1?`<div class="cell-sub">${recipients.length}개 기관</div>`:''}</td><td>${r.due?fmtDate(r.due):'-'}</td><td>${statusTag(requestLiveStatus(r))}</td><td><strong>${requestReplyCount(r)}/${recipients.length}</strong><div class="cell-sub">기관 회신</div></td></tr>`}).join('')}</tbody></table></div>`;
-}
-function requestsHTML(){
-  const insts=['전체 기관',...PORTAL_ORDER];
-  const scopes=['전체 요청','회신 대기','답변 완료','종결'];
-  return `<div class="toolbar request-admin-toolbar"><input class="input search" id="requestSearch" placeholder="요청 제목·내용 검색" value="${esc(viewFilter.requestSearch||'')}"><select class="select filter-select" id="requestInstitutionFilter">${insts.map(x=>`<option ${x===(viewFilter.requestInstitution||'전체 기관')?'selected':''}>${esc(x)}</option>`).join('')}</select><select class="select filter-select" id="requestScopeFilter">${scopes.map(x=>`<option ${x===(viewFilter.requestScope||'전체 요청')?'selected':''}>${esc(x)}</option>`).join('')}</select><button class="btn primary" id="addRequest">+ 요청 등록</button></div><div class="admin-edit-hint"><strong>요청·회신 관리</strong><span>관리자는 요청, 수신기관, 기관별 회신 및 상태를 수정하거나 삭제할 수 있습니다. 수신기관은 복수 선택할 수 있습니다.</span></div><div id="requestTableHolder">${requestAdminTableHTML(requestAdminItems())}</div>`;
-}
-function filterRequestsAdmin(){
-  viewFilter.requestSearch=document.getElementById('requestSearch')?.value||'';
-  viewFilter.requestInstitution=document.getElementById('requestInstitutionFilter')?.value||'전체 기관';
-  viewFilter.requestScope=document.getElementById('requestScopeFilter')?.value||'전체 요청';
-  const holder=document.getElementById('requestTableHolder');if(holder)holder.innerHTML=requestAdminTableHTML(requestAdminItems());
-  document.querySelectorAll('[data-request]').forEach(x=>x.onclick=()=>openRequest(x.dataset.request));
-}
-
 function memosHTML(){
   const insts=['전체 기관',...state.institutions.map(x=>x.name)];
   const selected=viewFilter.memoInstitution||'전체 기관';
@@ -750,7 +642,6 @@ function bindViewEvents(){
   if(document.getElementById('kpiSearch')){['input','change'].forEach(evt=>{document.getElementById('kpiSearch').addEventListener(evt,filterKpis);document.getElementById('kpiCategory').addEventListener(evt,filterKpis);document.getElementById('kpiStatus').addEventListener(evt,filterKpis);});}
   if(document.getElementById('actionSearch')){['input','change'].forEach(evt=>{document.getElementById('actionSearch').addEventListener(evt,filterActions);document.getElementById('actionInst').addEventListener(evt,filterActions);document.getElementById('actionStatus').addEventListener(evt,filterActions);document.getElementById('actionActive').addEventListener(evt,filterActions);});document.getElementById('addAction').onclick=()=>openAction();}
   if(document.getElementById('addRequest')) document.getElementById('addRequest').onclick=()=>openRequest();
-  if(document.getElementById('requestSearch')){['input','change'].forEach(evt=>{document.getElementById('requestSearch').addEventListener(evt,filterRequestsAdmin);document.getElementById('requestInstitutionFilter').addEventListener(evt,filterRequestsAdmin);document.getElementById('requestScopeFilter').addEventListener(evt,filterRequestsAdmin);});}
   if(document.getElementById('newRequestForInst')) document.getElementById('newRequestForInst').onclick=()=>openRequest(null, viewFilter.workInstitution || PARTNER_ORDER[0]);
   if(document.getElementById('newMemoForInst')) document.getElementById('newMemoForInst').onclick=()=>openMemo(null, viewFilter.workInstitution || PARTNER_ORDER[0]);
   if(document.getElementById('addMemo')) document.getElementById('addMemo').onclick=()=>openMemo();
@@ -764,21 +655,21 @@ function bindViewEvents(){
 }
 function bindInstitutionPortalEvents(){
   document.querySelectorAll('[data-portal-inst]').forEach(b=>b.onclick=()=>{
-    portalInstitution=b.dataset.portalInst;portalDetailTab='all';portalListFilter='all';portalRequestView='all';
+    portalInstitution=b.dataset.portalInst;portalDetailTab='all';portalListFilter='all';
     const code=INSTITUTION_CODE[portalInstitution]||'main';
     history.replaceState(null,'',`index.html?inst=${encodeURIComponent(code)}`);
     render();window.scrollTo({top:0,behavior:'smooth'});
   });
   document.querySelectorAll('[data-portal-detail]').forEach(b=>b.onclick=()=>{portalDetailTab=b.dataset.portalDetail;render();setTimeout(()=>document.querySelector('.portal-detail-section')?.scrollIntoView({behavior:'smooth',block:'start'}),20);});
   const portalListFilterEl=document.getElementById('portalListFilter');if(portalListFilterEl)portalListFilterEl.onchange=()=>{portalListFilter=portalListFilterEl.value;render();setTimeout(()=>document.querySelector('.portal-list-section')?.scrollIntoView({behavior:'smooth',block:'start'}),20);};
-  document.querySelectorAll('[data-portal-jump]').forEach(b=>b.onclick=()=>{const target=b.dataset.portalJump;if(target==='requests'){setTimeout(()=>document.querySelector('.portal-request-main-section')?.scrollIntoView({behavior:'smooth',block:'start'}),20);return;}portalDetailTab=target;render();setTimeout(()=>document.querySelector('.portal-detail-section')?.scrollIntoView({behavior:'smooth',block:'start'}),20);});
+  document.querySelectorAll('[data-portal-jump]').forEach(b=>b.onclick=()=>{portalDetailTab=b.dataset.portalJump;render();setTimeout(()=>document.querySelector('.portal-detail-section')?.scrollIntoView({behavior:'smooth',block:'start'}),20);});
   document.querySelectorAll('[data-portal-item]').forEach(b=>b.onclick=()=>{const id=b.dataset.portalItem;const category=b.dataset.portalCategory||'active';portalDetailTab=category==='overdue'?'overdue':category==='dueSoon'?'dueSoon':category==='upcoming'?'upcoming':category==='done'?'done':'all';render();setTimeout(()=>{const target=document.querySelector(`[data-portal-action="${id}"]`);(target||document.querySelector('.portal-detail-section'))?.scrollIntoView({behavior:'smooth',block:'center'});if(target){target.classList.add('portal-task-flash');setTimeout(()=>target.classList.remove('portal-task-flash'),1100);}},30);});
   document.querySelectorAll('[data-public-request]').forEach(b=>b.onclick=()=>openInstitutionRequest(b.dataset.publicRequest,portalInstitution));
   document.querySelectorAll('[data-public-memo]').forEach(b=>b.onclick=()=>openInstitutionMemo(b.dataset.publicMemo,portalInstitution));
   const add=document.getElementById('publicAddMemo');if(add)add.onclick=()=>openInstitutionMemo(null,portalInstitution);
   const addTop=document.getElementById('publicAddMemoTop');if(addTop)addTop.onclick=()=>openInstitutionMemo(null,portalInstitution);
   const newReq=document.getElementById('publicNewRequest');if(newReq)newReq.onclick=()=>openInstitutionNewRequest(portalInstitution);
-  const requestView=document.getElementById('portalRequestView');if(requestView)requestView.onchange=()=>{portalRequestView=requestView.value;render();setTimeout(()=>document.querySelector('.portal-request-main-section')?.scrollIntoView({behavior:'smooth',block:'start'}),20);};
+  const newReqDetail=document.getElementById('publicNewRequestDetail');if(newReqDetail)newReqDetail.onclick=()=>openInstitutionNewRequest(portalInstitution);
 }
 function filterKpis(){const q=document.getElementById('kpiSearch').value.trim().toLowerCase(),cat=document.getElementById('kpiCategory').value,st=document.getElementById('kpiStatus').value;const list=state.kpis.filter(k=>(!q||(k.name+' '+k.target).toLowerCase().includes(q))&&(cat==='전체'||k.category===cat)&&(st==='전체 상태'||k.status===st));document.getElementById('kpiGrid').innerHTML=renderKpiCards(list);document.querySelectorAll('[data-kpi]').forEach(x=>x.onclick=()=>openKpi(x.dataset.kpi));}
 function filterActions(){const q=document.getElementById('actionSearch').value.trim().toLowerCase(),inst=document.getElementById('actionInst').value,st=document.getElementById('actionStatus').value,active=document.getElementById('actionActive')?.value||'사용 항목';const list=state.actions.filter(a=>(!q||a.name.toLowerCase().includes(q))&&(inst==='전체 기관'||(inst==='책임기관 미확정'&&!a.owner)||a.owner===inst||(a.collaborators||[]).includes(inst))&&(st==='전체 상태'||a.status===st)&&(active==='전체 항목'||(active==='비활성'?a.active===false:a.active!==false)));document.getElementById('actionTableHolder').innerHTML=actionTableHTML(list);document.querySelectorAll('[data-action]').forEach(x=>x.onclick=()=>openAction(x.dataset.action));}
@@ -812,55 +703,11 @@ function openAction(id,preset={}){
   };
 }
 
-function deleteRequestAdmin(id){
-  const r=state.requests.find(x=>x.id===id);if(!r)return;
-  if(!confirm(`요청 "${r.title}"을 삭제하시겠습니까?\n등록된 기관 회신도 함께 삭제됩니다.`))return;
-  state.requests=state.requests.filter(x=>x.id!==id);saveState();closeDrawer();render();toast('요청을 삭제했습니다.');
-}
-function nextRequestId(){
-  const max=Math.max(0,...(state.requests||[]).map(x=>Number(String(x.id||'').split('-')[1])||0));
-  return 'REQ-'+String(max+1).padStart(3,'0');
-}
-function adminRequestResponseBlocks(r){
-  return requestRecipients(r).map(name=>{const resp=requestResponse(r,name);return `<div class="admin-response-block" data-admin-response="${esc(name)}"><div class="admin-response-head"><strong>${esc(name)} 회신</strong><span>${resp.text?'회신 등록':'회신 대기'}</span></div><div class="form-field"><label>회신내용</label><textarea class="textarea response-textarea" data-response-text="${esc(name)}" placeholder="처리결과, 일정, 확인내용">${esc(resp.text||'')}</textarea></div><div class="form-grid"><div class="form-field"><label>회신일</label><input type="date" class="input" data-response-date="${esc(name)}" value="${resp.date||''}"></div><div class="form-field"><label>관리자 확인 메모</label><input class="input" data-response-confirm="${esc(name)}" value="${esc(resp.confirmation||'')}" placeholder="확인 또는 추가 요청"></div></div>${resp.text?`<button type="button" class="btn secondary compact-btn" data-clear-response="${esc(name)}">회신 삭제</button>`:''}</div>`}).join('');
-}
-function openRequest(id,defaultTo=''){
-  let r=id?state.requests.find(x=>x.id===id):null;const isNew=!r;
-  if(!r)r={id:nextRequestId(),title:'',from:'정션메드',toInstitutions:defaultTo?[defaultTo]:[],to:defaultTo||'',content:'',requestedAt:today(),due:today(),status:'요청',responses:{},response:'',responseDate:'',confirmation:'',relatedAction:''};
-  normalizeRequest(r);
-  const targets=PORTAL_ORDER.filter(name=>name!==r.from);
-  const recipients=requestRecipients(r);
-  const responseBlock=isNew?'':`<div class="drawer-section-divider"><span>기관별 회신</span></div>${adminRequestResponseBlocks(r)}`;
-  openDrawer(isNew?'NEW REQUEST':r.id,isNew?'요청사항 등록':r.title,`<div class="request-flow-note"><strong>처리 절차</strong><span>요청 등록</span><b>→</b><span>기관별 회신</span><b>→</b><span>관리자 확인</span></div><div class="form-field"><label>요청 제목</label><input class="input" id="rTitle" value="${esc(r.title)}"></div><div class="form-field"><label>요청기관</label><select class="select" id="rFrom">${instOptions(r.from,false)}</select></div><div class="form-field"><label>수신기관</label><div id="rRecipientHolder">${recipientPickerHTML('rTarget',targets,recipients,true)}</div><div class="form-help">복수 선택할 수 있습니다. 전체 요청을 선택하면 요청기관을 제외한 모든 기관이 수신합니다.</div></div><div class="form-field"><label>요청사항</label><textarea class="textarea" id="rContent" placeholder="확인 또는 조치가 필요한 내용을 구체적으로 입력">${esc(r.content)}</textarea></div><div class="form-grid"><div class="form-field"><label>요청일</label><input type="date" class="input" id="rRequestedAt" value="${r.requestedAt||today()}"></div><div class="form-field"><label>회신기한</label><input type="date" class="input" id="rDue" value="${r.due||''}"></div></div><div class="form-grid"><div class="form-field"><label>관련 실행과제</label><select class="select" id="rAction"><option value="">미연결</option>${state.actions.map(a=>`<option value="${esc(a.id)}" ${a.id===r.relatedAction?'selected':''}>${esc(a.id+' · '+a.name)}</option>`).join('')}</select></div><div class="form-field"><label>상태</label><select class="select" id="rStatus">${REQUEST_STATUS.map(s=>`<option ${s===r.status?'selected':''}>${s}</option>`).join('')}</select></div></div>${responseBlock}<div class="drawer-actions">${!isNew?'<button class="btn danger" id="deleteReq">요청 삭제</button>':''}<button class="btn secondary" id="closeReq">취소</button><button class="btn primary" id="saveReq">저장</button></div>`);
+function openRequest(id,defaultTo=''){let r=id?state.requests.find(x=>x.id===id):null;const isNew=!r;if(!r)r={id:'REQ-'+String(state.requests.length+1).padStart(3,'0'),title:'',from:'정션메드',to:defaultTo||'',content:'',requestedAt:today(),due:today(),status:'요청',response:'',responseDate:'',confirmation:'',relatedAction:''};
+  const responseBlock=isNew?'':`<div class="drawer-section-divider"><span>기관 회신</span></div><div class="form-field"><label>회신내용</label><textarea class="textarea response-textarea" id="rResponse" placeholder="요청사항에 대한 처리결과, 일정, 확인내용을 입력">${esc(r.response||'')}</textarea></div><div class="form-grid"><div class="form-field"><label>회신일</label><input type="date" class="input" id="rResponseDate" value="${r.responseDate||''}"></div><div class="form-field"><label>처리상태</label><select class="select" id="rStatus">${REQUEST_STATUS.map(s=>`<option ${s===r.status?'selected':''}>${s}</option>`).join('')}</select></div></div><div class="form-field"><label>요청기관 확인 메모</label><textarea class="textarea" id="rConfirmation" placeholder="회신 확인 후 추가 요청 또는 종결 여부 기록">${esc(r.confirmation||'')}</textarea></div>`;
+  openDrawer(isNew?'NEW REQUEST':r.id,isNew?'요청사항 등록':r.title,`<div class="request-flow-note"><strong>처리 절차</strong><span>요청 등록</span><b>→</b><span>기관 회신</span><b>→</b><span>요청기관 확인</span></div><div class="form-field"><label>요청 제목</label><input class="input" id="rTitle" value="${esc(r.title)}"></div><div class="form-grid"><div class="form-field"><label>요청기관</label><select class="select" id="rFrom">${instOptions(r.from,false)}</select></div><div class="form-field"><label>수신기관</label><select class="select" id="rTo">${instOptions(r.to,false)}</select></div></div><div class="form-field"><label>요청사항</label><textarea class="textarea" id="rContent" placeholder="확인 또는 조치가 필요한 내용을 구체적으로 입력">${esc(r.content)}</textarea></div><div class="form-grid"><div class="form-field"><label>요청일</label><input type="date" class="input" id="rRequestedAt" value="${r.requestedAt||today()}"></div><div class="form-field"><label>회신기한</label><input type="date" class="input" id="rDue" value="${r.due||''}"></div></div><div class="form-field"><label>관련 실행과제</label><select class="select" id="rAction"><option value="">미연결</option>${state.actions.map(a=>`<option value="${esc(a.id)}" ${a.id===r.relatedAction?'selected':''}>${esc(a.id+' · '+a.name)}</option>`).join('')}</select></div>${responseBlock}${isNew?`<div class="form-field"><label>상태</label><select class="select" id="rStatus">${REQUEST_STATUS.map(s=>`<option ${s===r.status?'selected':''}>${s}</option>`).join('')}</select></div>`:''}<div class="drawer-actions"><button class="btn secondary" id="closeReq">취소</button><button class="btn primary" id="saveReq">저장</button></div>`);
   document.getElementById('closeReq').onclick=closeDrawer;
-  bindRecipientPicker('rTarget');
-  document.getElementById('rFrom').onchange=()=>{
-    const sender=document.getElementById('rFrom').value;
-    const current=selectedRecipients('rTarget').filter(x=>x!==sender);
-    const holder=document.getElementById('rRecipientHolder');
-    holder.innerHTML=recipientPickerHTML('rTarget',PORTAL_ORDER.filter(name=>name!==sender),current,true);
-    bindRecipientPicker('rTarget');
-  };
-  document.querySelectorAll('[data-clear-response]').forEach(btn=>btn.onclick=()=>{const name=btn.dataset.clearResponse;if(!confirm(`${name} 회신 내용을 삭제할까요?`))return;r.responses=r.responses||{};r.responses[name]={text:'',date:'',confirmation:''};r.status=requestReplyCount(r)?'처리 중':'요청';syncRequestLegacyFields(r);saveState();closeDrawer();render();toast('회신 내용을 삭제했습니다.');});
-  if(document.getElementById('deleteReq'))document.getElementById('deleteReq').onclick=()=>{if(!confirm('이 요청과 모든 기관의 회신을 삭제할까요?'))return;state.requests=state.requests.filter(x=>x.id!==r.id);saveState();closeDrawer();render();toast('요청을 삭제했습니다.');};
-  document.getElementById('saveReq').onclick=()=>{
-    const title=document.getElementById('rTitle').value.trim();if(!title){alert('요청 제목을 입력하세요.');return;}
-    const from=document.getElementById('rFrom').value;
-    const selected=selectedRecipients('rTarget').filter(x=>x!==from);if(!selected.length){alert('수신기관을 한 곳 이상 선택하세요.');return;}
-    const oldResponses=clone(r.responses||{});r.responses={};selected.forEach(name=>{r.responses[name]=oldResponses[name]||{text:'',date:'',confirmation:''};});
-    if(!isNew){
-      selected.forEach(name=>{
-        const block=[...document.querySelectorAll('[data-admin-response]')].find(el=>el.dataset.adminResponse===name);
-        const ta=block?.querySelector('[data-response-text]');
-        const date=block?.querySelector('[data-response-date]');
-        const conf=block?.querySelector('[data-response-confirm]');
-        if(ta)r.responses[name]={text:ta.value.trim(),date:date?.value||'',confirmation:conf?.value||''};
-      });
-    }
-    r.title=title;r.from=from;r.toInstitutions=selected;r.content=document.getElementById('rContent').value;r.requestedAt=document.getElementById('rRequestedAt').value;r.due=document.getElementById('rDue').value;r.status=document.getElementById('rStatus').value;r.relatedAction=document.getElementById('rAction').value;
-    syncRequestLegacyFields(r);if(!['종결','PM 조정 필요'].includes(r.status)){if(requestAllReplied(r))r.status='답변 완료';else if(requestReplyCount(r))r.status='처리 중';}
-    if(isNew)state.requests.push(r);saveState();closeDrawer();render();toast(isNew?'요청사항을 등록했습니다.':'요청·회신 내용을 저장했습니다.');
-  };
+  document.getElementById('saveReq').onclick=()=>{r.title=document.getElementById('rTitle').value.trim();if(!r.title){alert('요청 제목을 입력하세요.');return;}r.from=document.getElementById('rFrom').value;r.to=document.getElementById('rTo').value;r.content=document.getElementById('rContent').value;r.requestedAt=document.getElementById('rRequestedAt').value;r.due=document.getElementById('rDue').value;r.status=document.getElementById('rStatus').value;r.relatedAction=document.getElementById('rAction').value;if(!isNew){r.response=document.getElementById('rResponse').value;r.responseDate=document.getElementById('rResponseDate').value;r.confirmation=document.getElementById('rConfirmation').value;if(r.response.trim() && ['요청','수신 확인','처리 중'].includes(r.status))r.status='답변 완료';}if(isNew)state.requests.push(r);saveState();closeDrawer();render();toast(isNew?'요청사항을 등록했습니다.':'요청·회신 내용을 저장했습니다.');};
 }
 
 function openMemo(id,defaultInstitution=''){let m=id?(state.memos||[]).find(x=>x.id===id):null;const isNew=!m;if(!m)m={id:'MEM-'+String((state.memos||[]).length+1).padStart(3,'0'),title:'',institution:defaultInstitution||'',relatedAction:'',status:'진행',messages:[]};
@@ -876,27 +723,27 @@ function nextPortalRequestId(){
 }
 function openInstitutionNewRequest(institution){
   const targets=PORTAL_ORDER.filter(name=>name!==institution);
-  const initial=institution==='정션메드'?[]:['정션메드'];
+  const defaultTarget=institution==='정션메드'?(targets[0]||'경복대학교'):'정션메드';
   const related=state.actions.filter(a=>a.active!==false && actionTouchesInstitution(a,institution));
-  openDrawer('NEW REQUEST','요청 보내기',`<div class="public-drawer-intro"><strong>${esc(institution)}</strong><p>확인 또는 협조가 필요한 사항을 전달합니다. 수신기관은 복수 선택할 수 있습니다.</p></div><div class="form-field"><label>수신기관</label>${recipientPickerHTML('publicReqTarget',targets,initial,true)}<div class="form-help">전체 요청을 선택하면 현재 기관을 제외한 모든 기관에 한 번에 전달됩니다.</div></div><div class="form-field"><label>요청 제목</label><input class="input" id="publicReqTitle" placeholder="예: 실증 일정 확인 요청"></div><div class="form-field"><label>요청 내용</label><textarea class="textarea response-textarea" id="publicReqContent" placeholder="확인 또는 협조가 필요한 내용을 구체적으로 입력해 주십시오."></textarea></div><div class="form-grid"><div class="form-field"><label>요청일</label><input type="date" class="input" id="publicReqDate" value="${today()}"></div><div class="form-field"><label>회신 희망일</label><input type="date" class="input" id="publicReqDue" value=""></div></div><div class="form-field"><label>관련 항목</label><select class="select" id="publicReqAction"><option value="">미연결</option>${related.map(a=>`<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('')}</select></div><div class="drawer-actions"><button class="btn secondary" id="publicNewReqCancel">취소</button><button class="btn primary" id="publicNewReqSave">요청 등록</button></div>`);
-  document.getElementById('publicNewReqCancel').onclick=closeDrawer;bindRecipientPicker('publicReqTarget');
+  openDrawer('NEW REQUEST','요청 보내기',`<div class="public-drawer-intro"><strong>${esc(institution)}</strong><p>확인 또는 협조가 필요한 사항을 전달합니다. 수신기관의 화면에 즉시 표시됩니다.</p></div><div class="form-field"><label>수신기관</label><select class="select" id="publicReqTo">${targets.map(name=>`<option value="${esc(name)}" ${name===defaultTarget?'selected':''}>${esc(name)}</option>`).join('')}</select></div><div class="form-field"><label>요청 제목</label><input class="input" id="publicReqTitle" placeholder="예: 실증 일정 확인 요청"></div><div class="form-field"><label>요청 내용</label><textarea class="textarea response-textarea" id="publicReqContent" placeholder="확인 또는 협조가 필요한 내용을 구체적으로 입력해 주십시오."></textarea></div><div class="form-grid"><div class="form-field"><label>요청일</label><input type="date" class="input" id="publicReqDate" value="${today()}"></div><div class="form-field"><label>회신 희망일</label><input type="date" class="input" id="publicReqDue" value=""></div></div><div class="form-field"><label>관련 항목</label><select class="select" id="publicReqAction"><option value="">미연결</option>${related.map(a=>`<option value="${esc(a.id)}">${esc(a.name)}</option>`).join('')}</select></div><div class="drawer-actions"><button class="btn secondary" id="publicNewReqCancel">취소</button><button class="btn primary" id="publicNewReqSave">요청 등록</button></div>`);
+  document.getElementById('publicNewReqCancel').onclick=closeDrawer;
   document.getElementById('publicNewReqSave').onclick=async()=>{
-    const title=document.getElementById('publicReqTitle').value.trim();const content=document.getElementById('publicReqContent').value.trim();const recipients=selectedRecipients('publicReqTarget');
-    if(!recipients.length){alert('수신기관을 한 곳 이상 선택해 주십시오.');return;}if(!title){alert('요청 제목을 입력해 주십시오.');return;}if(!content){alert('요청 내용을 입력해 주십시오.');return;}
-    const responses=Object.fromEntries(recipients.map(name=>[name,{text:'',date:'',confirmation:''}]));
-    const r={id:nextPortalRequestId(),title,from:institution,toInstitutions:recipients,to:recipients[0]||'',content,requestedAt:document.getElementById('publicReqDate').value||today(),due:document.getElementById('publicReqDue').value||'',status:'요청',responses,response:'',responseDate:'',confirmation:'',relatedAction:document.getElementById('publicReqAction').value||''};
-    normalizeRequest(r);state.requests=state.requests||[];state.requests.push(r);persistLocal();
-    try{await portalCreateRequestRemote(r,institution);closeDrawer();portalRequestView='sent';render();toast(recipients.length>1?`${recipients.length}개 기관에 요청을 전달했습니다.`:'요청을 전달했습니다.');}
-    catch(e){state.requests=state.requests.filter(x=>x.id!==r.id);persistLocal();alert('공유DB 요청 저장에 실패했습니다. v20 DB 업데이트 SQL을 먼저 실행해 주십시오.');}
+    const title=document.getElementById('publicReqTitle').value.trim();
+    const content=document.getElementById('publicReqContent').value.trim();
+    const to=document.getElementById('publicReqTo').value;
+    if(!title){alert('요청 제목을 입력해 주십시오.');return;}
+    if(!content){alert('요청 내용을 입력해 주십시오.');return;}
+    const r={id:nextPortalRequestId(),title,from:institution,to,content,requestedAt:document.getElementById('publicReqDate').value||today(),due:document.getElementById('publicReqDue').value||'',status:'요청',response:'',responseDate:'',confirmation:'',relatedAction:document.getElementById('publicReqAction').value||''};
+    state.requests=state.requests||[];state.requests.push(r);persistLocal();
+    try{await portalCreateRequestRemote(r,institution);closeDrawer();portalDetailTab='requests';render();toast('요청을 전달했습니다.');}
+    catch(e){state.requests=state.requests.filter(x=>x.id!==r.id);persistLocal();alert('공유DB 요청 저장에 실패했습니다. v19 DB 업데이트 SQL을 먼저 실행해 주십시오.');}
   };
 }
-
 function openInstitutionRequest(id,institution){
-  const r=state.requests.find(x=>x.id===id);if(!r||!requestIncludesRecipient(r,institution))return;
-  const resp=requestResponse(r,institution);
-  openDrawer('REQUEST',r.title,`<div class="public-drawer-readonly"><span>요청사항</span><p>${esc(r.content||'')}</p><div><strong>요청기관</strong> ${esc(r.from||'-')}</div><div><strong>회신기한</strong> ${r.due?fmtDate(r.due):'미정'}</div></div><div class="drawer-section-divider"><span>${esc(institution)} 회신</span></div><div class="form-field"><label>회신내용</label><textarea class="textarea response-textarea" id="publicResponse" placeholder="처리현황, 완료예정일, 확인내용을 입력">${esc(resp.text||'')}</textarea></div><div class="form-field"><label>회신일</label><input type="date" class="input" id="publicResponseDate" value="${resp.date||today()}"></div>${resp.confirmation?`<div class="public-confirm-readonly"><span>관리자 확인</span><p>${esc(resp.confirmation)}</p></div>`:''}<div class="drawer-actions"><button class="btn secondary" id="publicReqCancel">취소</button><button class="btn primary" id="publicReqSave">회신 저장</button></div>`);
+  const r=state.requests.find(x=>x.id===id);if(!r||r.to!==institution)return;
+  openDrawer('REQUEST',r.title,`<div class="public-drawer-readonly"><span>요청사항</span><p>${esc(r.content||'')}</p><div><strong>회신기한</strong> ${r.due?fmtDate(r.due):'미정'}</div></div><div class="drawer-section-divider"><span>기관 회신</span></div><div class="form-field"><label>회신내용</label><textarea class="textarea response-textarea" id="publicResponse" placeholder="처리현황, 완료예정일, 확인내용을 입력">${esc(r.response||'')}</textarea></div><div class="form-field"><label>회신일</label><input type="date" class="input" id="publicResponseDate" value="${r.responseDate||today()}"></div>${r.confirmation?`<div class="public-confirm-readonly"><span>정션메드 확인</span><p>${esc(r.confirmation)}</p></div>`:''}<div class="drawer-actions"><button class="btn secondary" id="publicReqCancel">취소</button><button class="btn primary" id="publicReqSave">회신 저장</button></div>`);
   document.getElementById('publicReqCancel').onclick=closeDrawer;
-  document.getElementById('publicReqSave').onclick=async()=>{const text=document.getElementById('publicResponse').value.trim();if(!text){alert('회신내용을 입력해 주십시오.');return;}r.responses=r.responses||{};r.responses[institution]={...requestResponse(r,institution),text,date:document.getElementById('publicResponseDate').value||today()};r.status=requestAllReplied(r)?'답변 완료':'처리 중';syncRequestLegacyFields(r);persistLocal();try{await portalReplyRequestRemote(r,institution);closeDrawer();render();toast('회신을 저장했습니다.');}catch(e){alert('공유DB 회신 저장에 실패했습니다. 잠시 후 다시 시도해 주십시오.');}};
+  document.getElementById('publicReqSave').onclick=async()=>{const text=document.getElementById('publicResponse').value.trim();if(!text){alert('회신내용을 입력해 주십시오.');return;}r.response=text;r.responseDate=document.getElementById('publicResponseDate').value||today();if(['요청','수신 확인','처리 중','기한 초과'].includes(r.status))r.status='답변 완료';persistLocal();try{await portalReplyRequestRemote(r,institution);closeDrawer();render();toast('회신을 저장했습니다.');}catch(e){alert('공유DB 회신 저장에 실패했습니다. 잠시 후 다시 시도해 주십시오.');}};
 }
 function openInstitutionMemo(id,institution){
   let m=id?(state.memos||[]).find(x=>x.id===id):null;const isNew=!m;
@@ -917,12 +764,12 @@ async function submitAdminLogin(){
   document.getElementById('loginError').textContent='확인 중...';
   const {data,error}=await supabaseClient.rpc('ax_verify_admin_pin',{p_pin:pin});
   if(!error&&data===true){
-    sessionStorage.setItem('ax-sprint-admin-v20','1');sessionStorage.setItem('ax-sprint-admin-pin-v20',pin);adminPinSession=pin;isAdmin=true;currentView='dashboard';hideAdminLogin();
+    sessionStorage.setItem('ax-sprint-admin-v19','1');sessionStorage.setItem('ax-sprint-admin-pin-v19',pin);adminPinSession=pin;isAdmin=true;currentView='dashboard';hideAdminLogin();
     if(!remoteInitialized)await pushRemoteState();else await refreshFromRemote(true);
     render();toast('관리자 화면으로 전환했습니다.');
   }else{document.getElementById('loginError').textContent=error?'DB 설정 또는 연결을 확인해 주십시오.':'비밀번호가 일치하지 않습니다.';document.getElementById('adminPassword').select();}
 }
-function exitAdmin(){sessionStorage.removeItem('ax-sprint-admin-v20');sessionStorage.removeItem('ax-sprint-admin-pin-v20');adminPinSession='';isAdmin=false;currentView='portal';render();window.scrollTo({top:0,behavior:'smooth'});}
+function exitAdmin(){sessionStorage.removeItem('ax-sprint-admin-v19');sessionStorage.removeItem('ax-sprint-admin-pin-v19');adminPinSession='';isAdmin=false;currentView='portal';render();window.scrollTo({top:0,behavior:'smooth'});}
 
 function exportJson(){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='AX_Sprint_Control_Tower_backup.json';a.click();URL.revokeObjectURL(a.href);}
 document.getElementById('importInput').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=()=>{try{state=normalizeFlexibleActions(renameLegacyInstitution(JSON.parse(reader.result)));saveState();render();toast('백업 데이터를 불러왔습니다.');}catch(err){alert('올바른 JSON 백업 파일이 아닙니다.');}};reader.readAsText(f);e.target.value='';});
